@@ -139,10 +139,15 @@ pub fn run_claude_login() -> Result<(), String> {
     Ok(())
 }
 
-/// STUB — el refresh OAuth real es Fase 3C. Por ahora `claude login` en otra
-/// terminal ya refresca el archivo y `check_credentials` lo releerá de disco.
+/// Refresca el token OAuth contra el endpoint de Claude Code y reescribe
+/// `.credentials.json` (con backup `.bak`). Lo usa el botón "Refresh token" del
+/// wizard cuando detecta el token caducado.
 #[tauri::command]
-pub fn refresh_oauth_token() -> Result<(), String> {
+pub async fn refresh_oauth_token() -> Result<(), String> {
+    let oauth = credentials::load_raw().map_err(|e| e.to_string())?;
+    credentials::refresh_token(&oauth)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

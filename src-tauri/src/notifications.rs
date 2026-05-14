@@ -6,6 +6,11 @@ use crate::setup_state::SetupState;
 use crate::status::StatusSnapshot;
 use crate::tray::format_countdown;
 
+/// AppUserModelID de BurnClaw. Identifica la app ante Windows para que las
+/// notificaciones toast salgan con el nombre e icono de BurnClaw en vez de
+/// "Windows PowerShell". Debe coincidir con `bundle.identifier` de tauri.conf.
+pub const AUMID: &str = "com.alex.burnclaw";
+
 /// Memoria entre polls: qué umbrales ya se han notificado en la ventana actual,
 /// para no repetir la notificación cada 60s.
 pub struct NotificationState {
@@ -121,6 +126,43 @@ fn notify(title: &str, body: &str) {
     let _ = Notification::new()
         .summary(title)
         .body(body)
+        .app_id(AUMID)
         .timeout(notify_rust::Timeout::Default)
         .show();
+}
+
+/// Registra el AUMID en el registro de Windows y lo asocia al proceso actual.
+/// Sin esto, las notificaciones nativas salen atribuidas a "Windows PowerShell"
+/// (el host que notify-rust usa por debajo). Idempotente: se llama en cada
+/// arranque (la parte del registro se sobrescribe, la del proceso es obligada
+/// cada vez).
+#[cfg(windows)]
+pub fn register_aumid() -> Result<(), Box<dyn std::error::Error>> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    // 1. Registrar la app: HKCU\Software\Classes\AppUserModelId\{AUMID}
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) =
+        hkcu.create_subkey(format!("Software\\Classes\\AppUserModelId\\{}", AUMID))?;
+    key.set_value("DisplayName", &"BurnClaw")?;
+
+    // Icono: el .ico que el instalador deja junto al .exe.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let icon = dir.join("icon.ico");
+            if icon.exists() {
+                key.set_value("IconUri", &icon.to_string_lossy().to_string())?;
+            }
+        }
+    }
+
+    // 2. Asociar el AUMID al proceso actual (necesario en cada arranque).
+    unsafe {
+        use windows::core::HSTRING;
+        use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+        SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(AUMID))?;
+    }
+
+    Ok(())
 }

@@ -17,11 +17,12 @@ pub async fn run(
     state: SharedUsage,
     notif_state: SharedNotificationState,
     force_refresh: ForceRefresh,
-    token: String,
     settings: SharedSettings,
 ) {
     loop {
-        match anthropic::fetch_usage(&token).await {
+        // `fetch_usage` relee las credenciales de disco en cada llamada y
+        // refresca el token OAuth solo cuando hace falta.
+        match anthropic::fetch_usage().await {
             Ok(snap) => {
                 {
                     let mut guard = state.lock().unwrap();

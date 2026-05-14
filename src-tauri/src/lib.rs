@@ -41,26 +41,19 @@ pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 
     let settings = app.state::<SharedSettings>().inner().clone();
 
-    // Poller de uso — necesita el token OAuth.
-    match credentials::load() {
-        Ok(oauth) => {
-            let handle = app.clone();
-            let usage = app.state::<SharedUsage>().inner().clone();
-            let notif = app.state::<SharedNotificationState>().inner().clone();
-            let force_refresh = app.state::<ForceRefresh>().inner().clone();
-            let token = oauth.access_token.clone();
-            let poller_settings = settings.clone();
-            tauri::async_runtime::spawn(async move {
-                poller::run(handle, usage, notif, force_refresh, token, poller_settings)
-                    .await;
-            });
-        }
-        Err(e) => {
-            logging::app(&format!(
-                "credentials load failed in init_tray_and_pill: {}",
-                e
-            ));
-        }
+    // Poller de uso. El poller relee las credenciales (y refresca el token) en
+    // cada vuelta, así que solo hace falta que el archivo exista para arrancarlo.
+    if credentials::load_raw().is_ok() {
+        let handle = app.clone();
+        let usage = app.state::<SharedUsage>().inner().clone();
+        let notif = app.state::<SharedNotificationState>().inner().clone();
+        let force_refresh = app.state::<ForceRefresh>().inner().clone();
+        let poller_settings = settings.clone();
+        tauri::async_runtime::spawn(async move {
+            poller::run(handle, usage, notif, force_refresh, poller_settings).await;
+        });
+    } else {
+        logging::app("credentials file not found — usage poller not started");
     }
 
     // Poller de status — no necesita credenciales.
@@ -80,6 +73,13 @@ pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Registrar el AppUserModelID antes de nada: las notificaciones que se
+    // disparen después saldrán con el nombre/icono de BurnClaw.
+    #[cfg(windows)]
+    if let Err(e) = notifications::register_aumid() {
+        logging::app(&format!("failed to register AUMID: {}", e));
+    }
+
     let usage_state: SharedUsage = Arc::new(Mutex::new(None));
     let status_state: SharedStatus = Arc::new(Mutex::new(None));
     let force_refresh: ForceRefresh = Arc::new(Notify::new());
@@ -130,7 +130,9 @@ pub fn run() {
         })
         .setup(|app| {
             let completed = app.state::<SharedSettings>().lock().unwrap().completed;
-            let creds_ok = credentials::load().is_ok();
+            // load_raw, no load: un token caducado no debe mandar al wizard —
+            // el poller lo refrescará solo. Solo importa que el archivo exista.
+            let creds_ok = credentials::load_raw().is_ok();
 
             if !completed || !creds_ok {
                 // Primer arranque o credenciales rotas: mostrar el wizard.

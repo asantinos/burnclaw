@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::{credentials, logging};
+
 const ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
 const MODEL: &str = "claude-haiku-4-5-20251001";
 const USER_AGENT: &str = "claude-cli/2.1.119 (external, cli)";
@@ -38,6 +40,10 @@ pub enum AnthropicError {
     MissingHeader(&'static str),
     #[error("invalid header value: {0}")]
     InvalidHeaderValue(String),
+    #[error("{0}")]
+    Credentials(#[from] credentials::CredentialsError),
+    #[error("token expired — run `claude login` to renew it")]
+    TokenExpired,
 }
 
 #[derive(Serialize)]
@@ -61,7 +67,44 @@ struct Msg {
     content: &'static str,
 }
 
-pub async fn fetch_usage(access_token: &str) -> Result<UsageSnapshot, AnthropicError> {
+/// Obtiene el uso actual. Lee las credenciales de disco en cada llamada (así
+/// recoge las rotaciones que hace Claude Code), refresca el token de forma
+/// preventiva si le quedan <5 min y, si aun así sale un 401, lo refresca y
+/// reintenta una vez. Si el refresh falla, devuelve `TokenExpired` —
+/// BurnClaw no queda "roto": el usuario puede hacer `claude login`.
+pub async fn fetch_usage() -> Result<UsageSnapshot, AnthropicError> {
+    let mut oauth = credentials::load_raw()?;
+
+    // Refresh preventivo: si quedan menos de 5 min, renovar antes de pedir.
+    let now_ms = Utc::now().timestamp_millis();
+    if oauth.expires_at - now_ms < 5 * 60 * 1000 {
+        match credentials::refresh_token(&oauth).await {
+            Ok(refreshed) => oauth = refreshed,
+            Err(e) => {
+                // Aún no es fatal: se intenta la request y, si da 401, se
+                // reintenta el refresh abajo.
+                logging::app(&format!("preemptive token refresh failed: {}", e));
+            }
+        }
+    }
+
+    match make_request(&oauth.access_token).await {
+        Err(AnthropicError::Unauthorized) => {
+            // El token caducó pese a la comprobación previa: refrescar y
+            // reintentar una sola vez.
+            match credentials::refresh_token(&oauth).await {
+                Ok(refreshed) => make_request(&refreshed.access_token).await,
+                Err(e) => {
+                    logging::app(&format!("token refresh failed after 401: {}", e));
+                    Err(AnthropicError::TokenExpired)
+                }
+            }
+        }
+        other => other,
+    }
+}
+
+async fn make_request(access_token: &str) -> Result<UsageSnapshot, AnthropicError> {
     let client = reqwest::Client::new();
     let body = RequestBody {
         model: MODEL,

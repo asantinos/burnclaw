@@ -32,3 +32,8 @@ dirs = "5"
 thiserror = "1"
 winreg = "0.55"
 
+# Windows-only: AppUserModelID para que las notificaciones salgan con el
+# nombre/icono de BurnClaw. Versión alineada con la que ya resuelve Tauri.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Win32_UI_Shell", "Win32_Foundation"] }
+

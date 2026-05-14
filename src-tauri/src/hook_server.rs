@@ -111,6 +111,7 @@ fn trigger_notification(state: &HookState, event: &ClaudeEvent) {
                         .as_deref()
                         .unwrap_or("Claude is waiting for your input"),
                 )
+                .app_id(crate::notifications::AUMID)
                 .show()
                 .ok();
         }
@@ -124,6 +125,7 @@ fn trigger_notification(state: &HookState, event: &ClaudeEvent) {
             Notification::new()
                 .summary("Claude finished")
                 .body(&format!("Response complete · {}", project))
+                .app_id(crate::notifications::AUMID)
                 .show()
                 .ok();
         }

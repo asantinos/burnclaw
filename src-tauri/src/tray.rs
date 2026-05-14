@@ -11,11 +11,8 @@ use crate::{ForceRefresh, LastWindowPos};
 
 const TRAY_ID: &str = "burnclaw-tray";
 const WINDOW_LABEL: &str = "main";
-const SCREEN_MARGIN: i32 = 8;
-const TASKBAR_EST: i32 = 48;
-/// Padding del body de la ventana: el contenido visible (shell) está embebido
-/// SHELL_MARGIN px dentro de la ventana para dejar sitio a la sombra.
-const SHELL_MARGIN: i32 = 18;
+/// Separación entre el borde superior de la pantalla y la ventana.
+const TOP_MARGIN: i32 = 8;
 
 const IDLE_PNG: &[u8] = include_bytes!("../icons/tray/idle.png");
 const OK_PNG: &[u8] = include_bytes!("../icons/tray/ok.png");
@@ -25,8 +22,9 @@ const DANGER_PNG: &[u8] = include_bytes!("../icons/tray/danger.png");
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let refresh_item = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&refresh_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&refresh_item, &settings_item, &quit_item])?;
 
     let idle_icon = Image::from_bytes(IDLE_PNG)?;
 
@@ -39,6 +37,14 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             "refresh" => {
                 if let Some(notify) = app.try_state::<ForceRefresh>() {
                     notify.notify_one();
+                }
+            }
+            "settings" => {
+                // Reabre el wizard de setup (sigue vivo, oculto tras completarlo).
+                if let Some(win) = app.get_webview_window("setup") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                    let _ = app.emit_to("setup", "setup-reopened", ());
                 }
             }
             "quit" => {
@@ -68,30 +74,48 @@ fn toggle_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
         return;
     };
-    let last_pos = app.try_state::<LastWindowPos>();
-
     if window.is_visible().unwrap_or(false) {
         // Guarda la posición actual antes de ocultar.
-        if let (Ok(pos), Some(last)) = (window.outer_position(), &last_pos) {
+        if let (Ok(pos), Some(last)) =
+            (window.outer_position(), app.try_state::<LastWindowPos>())
+        {
             *last.lock().unwrap() = Some((pos.x, pos.y));
         }
         let _ = window.hide();
     } else {
-        // Restaura la última posición; la primera vez, posiciona junto al tray.
-        let restored = last_pos.and_then(|s| *s.lock().unwrap());
-        if let Some((x, y)) = restored {
-            let _ = window.set_position(PhysicalPosition::new(x, y));
-        } else {
-            position_near_taskbar(&window);
-        }
-        let _ = window.show();
-        let _ = window.set_focus();
-        // Al abrir desde el tray, el frontend vuelve al estado colapsado (pill).
-        let _ = app.emit_to(WINDOW_LABEL, "window-shown", ());
+        show_main_window(app);
     }
 }
 
-fn position_near_taskbar(window: &tauri::WebviewWindow) {
+/// Muestra la ventana principal (pill): restaura la última posición o la
+/// coloca arriba-centro la primera vez. La usa el toggle del tray y también
+/// `complete_setup` al cerrar el wizard.
+pub fn show_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        return;
+    };
+    let restored = app
+        .try_state::<LastWindowPos>()
+        .and_then(|s| *s.lock().unwrap());
+    if let Some((x, y)) = restored {
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    } else {
+        position_top_center(&window);
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+    // El frontend vuelve al estado colapsado (pill).
+    let _ = app.emit_to(WINDOW_LABEL, "window-shown", ());
+}
+
+/// Si el tray icon ya existe, la app ya está en modo normal (idempotencia
+/// de `init_tray_and_pill`, que puede llamarse de nuevo desde `complete_setup`).
+pub fn is_initialized(app: &AppHandle) -> bool {
+    app.tray_by_id(TRAY_ID).is_some()
+}
+
+/// Coloca la ventana arriba-centro del monitor primario.
+fn position_top_center(window: &tauri::WebviewWindow) {
     let win_size = match window.outer_size() {
         Ok(s) => s,
         Err(_) => return,
@@ -99,15 +123,8 @@ fn position_near_taskbar(window: &tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.primary_monitor() {
         let mpos = monitor.position();
         let msize = monitor.size();
-        // El shell visible está embebido SHELL_MARGIN px dentro de la ventana;
-        // se compensa para que quede SCREEN_MARGIN px del borde real.
-        let x = mpos.x + msize.width as i32 - win_size.width as i32 - SCREEN_MARGIN
-            + SHELL_MARGIN;
-        let y = mpos.y + msize.height as i32
-            - win_size.height as i32
-            - TASKBAR_EST
-            - SCREEN_MARGIN
-            + SHELL_MARGIN;
+        let x = mpos.x + (msize.width as i32 - win_size.width as i32) / 2;
+        let y = mpos.y + TOP_MARGIN;
         let _ = window.set_position(PhysicalPosition::new(x, y));
     }
 }

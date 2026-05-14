@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 // ====================================================
 // STATE
@@ -400,6 +401,13 @@ window.addEventListener("focus", async () => {
   renderCredsSection();
   renderFooter();
   manageStep2Polling();
+});
+
+// Reabierto desde el menú "Settings" del tray: refresca el estado real.
+listen("setup-reopened", async () => {
+  await refreshCredsState();
+  await refreshHooksState();
+  renderAll();
 });
 
 // ====================================================

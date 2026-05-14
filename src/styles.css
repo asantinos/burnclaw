@@ -44,12 +44,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* La ventana es fija y mayor que el contenido; este padding deja sitio a la
-   sombra del shell y ancla el shell abajo-derecha. */
+/* La ventana es mayor que el contenido; este padding deja sitio a la sombra.
+   El shell se ancla ARRIBA-CENTRO: crece hacia abajo y se mantiene centrado. */
 body {
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: flex-start;
+  justify-content: center;
   padding: 18px;
 }
 

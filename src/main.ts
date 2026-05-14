@@ -223,11 +223,11 @@ let state: ShellState = "collapsed";
 
 const BODY_PADDING = 18; // coincide con `body { padding }` en styles.css — sombra
 // Margen transparente extra en estado colapsado para que los tooltips de la
-// pill (que se despliegan hacia la izquierda y arriba) no se recorten contra
-// el borde de la ventana. El shell sigue anclado abajo-derecha (flex-end), así
-// que este extra es espacio libre a su izquierda/arriba.
-const COLLAPSED_TOOLTIP_LEFT = 100;
-const COLLAPSED_TOOLTIP_TOP = 0;
+// pill (que se despliegan hacia ABAJO) no se recorten contra el borde de la
+// ventana. El shell está anclado arriba-centro, así que el extra de ancho se
+// reparte a ambos lados y el de alto va por debajo.
+const COLLAPSED_TOOLTIP_SIDE = 80;
+const COLLAPSED_TOOLTIP_BELOW = 32;
 
 function activeContent() {
   return state === "collapsed" ? els.pillContent : els.widgetContent;
@@ -239,16 +239,16 @@ function applyShellSize() {
   els.shell.style.height = `${el.offsetHeight}px`;
 }
 
-// La ventana del SO sigue al contenido (shell + padding del body por lado),
-// anclada abajo-derecha. Así la pill colapsada es una ventana pequeña que se
-// arrastra a cualquier sitio, sin la restricción de una ventana grande fija.
+// La ventana del SO sigue al contenido (shell + padding del body por lado).
+// Anclada arriba-centro: crece hacia abajo. En estado colapsado lleva margen
+// extra a los lados y por debajo para los tooltips de la pill.
 function resizeWindowToContent() {
   const el = activeContent();
   let width = el.offsetWidth + BODY_PADDING * 2;
   let height = el.offsetHeight + BODY_PADDING * 2;
   if (state === "collapsed") {
-    width += COLLAPSED_TOOLTIP_LEFT;
-    height += COLLAPSED_TOOLTIP_TOP;
+    width += COLLAPSED_TOOLTIP_SIDE * 2;
+    height += COLLAPSED_TOOLTIP_BELOW;
   }
   return invoke("resize_shell_window", { width, height }).catch((e) =>
     console.error("resize_shell_window failed:", e),

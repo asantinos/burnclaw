@@ -28,6 +28,11 @@ pub type LastWindowPos = Arc<Mutex<Option<(i32, i32)>>>;
 /// status y servidor de hooks. Se llama al arrancar (si el setup ya está
 /// completo y hay credenciales) o desde `complete_setup` al cerrar el wizard.
 pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    // Idempotente: complete_setup puede llamarlo de nuevo (p. ej. al reabrir
+    // Settings y darle a Done otra vez). Si el tray ya existe, no re-inicializa.
+    if tray::is_initialized(app) {
+        return Ok(());
+    }
     tray::setup(app)?;
 
     // Poller de uso — necesita el token OAuth.

@@ -37,9 +37,9 @@ pub fn force_refresh(notify: State<'_, ForceRefresh>) {
 }
 
 /// Redimensiona la ventana principal al tamaño dado (logical px), manteniendo
-/// la esquina inferior-derecha fija. El frontend la llama al expandir/colapsar
-/// para que la ventana siga al contenido: pequeña cuando es pill (arrastrable
-/// a cualquier sitio), grande cuando es widget.
+/// fijo el punto de anclaje SUPERIOR-CENTRAL. El frontend la llama al
+/// expandir/colapsar para que la ventana siga al contenido: pequeña cuando es
+/// pill, grande cuando es widget — creciendo hacia abajo y centrada.
 #[tauri::command]
 pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<(), String> {
     let win = app
@@ -64,9 +64,11 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
         target_h.max(1) as u32,
     ))
     .map_err(|e| e.to_string())?;
+    // Borde superior fijo (cur_pos.y) y centro horizontal fijo: la mitad del
+    // cambio de ancho se reparte a cada lado; la altura crece hacia abajo.
     win.set_position(PhysicalPosition::new(
-        cur_pos.x + delta_x,
-        cur_pos.y + delta_y,
+        cur_pos.x + delta_x / 2,
+        cur_pos.y,
     ))
     .map_err(|e| e.to_string())?;
 
@@ -326,11 +328,14 @@ pub fn complete_setup(
     };
     setup.save().map_err(|e| e.to_string())?;
 
+    // Se oculta (no se cierra) para poder reabrirlo desde el menú "Settings".
     if let Some(win) = app.get_webview_window("setup") {
-        win.close().map_err(|e| e.to_string())?;
+        win.hide().map_err(|e| e.to_string())?;
     }
 
     crate::init_tray_and_pill(&app).map_err(|e| e.to_string())?;
+    // Al terminar el wizard, se muestra la pill directamente.
+    crate::tray::show_main_window(&app);
     Ok(())
 }
 

@@ -11,6 +11,12 @@ use crate::tray::format_countdown;
 /// "Windows PowerShell". Debe coincidir con `bundle.identifier` de tauri.conf.
 pub const AUMID: &str = "com.alex.burnclaw";
 
+/// Icono (512×512 PNG) embebido en el binario. Se extrae a una ruta estable
+/// para que Windows lo use como icono de las notificaciones — ver
+/// `register_aumid`.
+#[cfg(windows)]
+const ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+
 /// Memoria entre polls: qué umbrales ya se han notificado en la ventana actual,
 /// para no repetir la notificación cada 60s.
 pub struct NotificationState {
@@ -147,13 +153,13 @@ pub fn register_aumid() -> Result<(), Box<dyn std::error::Error>> {
         hkcu.create_subkey(format!("Software\\Classes\\AppUserModelId\\{}", AUMID))?;
     key.set_value("DisplayName", &"BurnClaw")?;
 
-    // Icono: el .ico que el instalador deja junto al .exe.
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let icon = dir.join("icon.ico");
-            if icon.exists() {
-                key.set_value("IconUri", &icon.to_string_lossy().to_string())?;
-            }
+    // Icono de las notificaciones: el PNG embebido se extrae a una ruta estable
+    // (%APPDATA%/burnclaw) y `IconUri` apunta ahí. Así funciona igual en dev y
+    // en la app instalada, sin depender de dónde deje el icono el instalador.
+    if let Some(dir) = crate::logging::dir() {
+        let icon_path = dir.join("burnclaw-icon.png");
+        if std::fs::write(&icon_path, ICON_PNG).is_ok() {
+            key.set_value("IconUri", &icon_path.to_string_lossy().to_string())?;
         }
     }
 

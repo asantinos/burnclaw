@@ -1,0 +1,43 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Env files (no se usan ahora, pero evita accidentes futuros)
+.env
+.env.*
+!.env.example
+
+# Claude Code config (archivos de trabajo local, no para el repo público)
+.claude/
+
+# Docs de trabajo interno / artefactos de diseño (no para el repo público)
+CLAUDE.md
+burnclaw-claude-states-mockup-v2.html
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS junk
+Thumbs.db
+desktop.ini
+
+# Superpowers brainstorming sessions (local artefacts)
+.superpowers/

@@ -115,8 +115,18 @@ pub fn run() {
             commands::save_settings,
             commands::reset_settings,
             commands::open_logs_folder,
-            commands::close_settings_window,
         ])
+        .on_window_event(|window, event| {
+            // La ventana de Settings tiene decoración nativa: al pulsar la X
+            // del SO se oculta (no se destruye), para poder reabrirla desde el
+            // menú del tray sin recrearla.
+            if window.label() == "settings" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let completed = app.state::<SharedSettings>().lock().unwrap().completed;
             let creds_ok = credentials::load().is_ok();

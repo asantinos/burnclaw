@@ -46,7 +46,7 @@
         "url": "settings.html",
         "width": 640,
         "height": 460,
-        "decorations": false,
+        "decorations": true,
         "transparent": false,
         "skipTaskbar": false,
         "alwaysOnTop": false,

@@ -8,23 +8,12 @@
   </head>
   <body>
     <div class="settings">
-      <button class="close-btn" id="close-btn" aria-label="Close">
-        <svg class="close-icon-svg" viewBox="0 0 16 16">
-          <path
-            d="M4 4L12 12 M12 4L4 12"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          />
-        </svg>
-      </button>
-
       <aside class="sidebar">
         <div class="sidebar-brand">
           <div class="sidebar-logo">
             <img src="/mascot.png" alt="BurnClaw" />
           </div>
-          <span class="sidebar-brand-name">Settings</span>
+          <span class="sidebar-brand-name">BurnClaw</span>
         </div>
 
         <div class="sidebar-heading">General</div>
@@ -38,16 +27,18 @@
           </button>
           <button class="nav-item" data-section="hooks">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 2v6" />
-              <path d="M8 8a3 3 0 0 0-3 3v3" />
-              <circle cx="8" cy="2" r="1" />
+              <path d="M5 2v3h6V2" />
+              <path d="M4 5h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4V5z" />
+              <path d="M8 12v2" />
             </svg>
             Activity hooks
           </button>
           <button class="nav-item" data-section="behavior">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="8" cy="8" r="2.5" />
-              <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06M12.95 12.95l-1.06-1.06M4.11 4.11L3.05 3.05" />
+              <rect x="2" y="3" width="12" height="10" rx="1.5" />
+              <path d="M2 6h12" />
+              <circle cx="4" cy="4.5" r="0.3" fill="currentColor" />
+              <circle cx="5.5" cy="4.5" r="0.3" fill="currentColor" />
             </svg>
             Behavior
           </button>
@@ -192,15 +183,17 @@
             <div class="pref-row">
               <div class="pref-row-flex">
                 <div class="pref-left">
-                  <div class="pref-title">Start minimized to pill</div>
+                  <div class="pref-title">Start mode</div>
                   <div class="pref-desc">
-                    Open as the compact pill rather than the expanded widget.
+                    Open as the compact pill or the expanded widget.
                   </div>
                 </div>
-                <label class="toggle">
-                  <input type="checkbox" id="set-start-minimized" />
-                  <span class="toggle-slider"></span>
-                </label>
+                <div class="pref-select" id="set-start-mode">
+                  <div class="pref-select-option" data-value="pill">Pill</div>
+                  <div class="pref-select-option" data-value="window">
+                    Window
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -408,11 +401,13 @@
 
             <div class="about-row">
               <span class="key">Author</span>
-              <span class="val">Alex Santino (RIQO)</span>
+              <span class="val">
+                <a id="link-author" href="#">asantinos</a>
+              </span>
             </div>
             <div class="about-row">
               <span class="key">License</span>
-              <span class="val">Personal use</span>
+              <span class="val">MIT</span>
             </div>
             <div class="about-row">
               <span class="key">Source</span>

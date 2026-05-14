@@ -419,12 +419,3 @@ pub fn open_logs_folder() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
-
-/// Oculta la ventana de Settings (botón X). Se oculta, no se cierra, para
-/// poder reabrirla desde el menú del tray sin recrearla.
-#[tauri::command]
-pub fn close_settings_window(app: AppHandle) {
-    if let Some(w) = app.get_webview_window("settings") {
-        let _ = w.hide();
-    }
-}

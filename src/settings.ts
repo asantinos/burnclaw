@@ -24,7 +24,6 @@ interface SetupState {
 
 type BoolKey =
   | "auto_start"
-  | "start_minimized"
   | "orange_border"
   | "console_banner"
   | "notify_usage_thresholds"
@@ -53,6 +52,7 @@ let hooksActionLoading = false;
 
 const SOURCE_URL = "https://github.com/asantinos/burnclaw";
 const ISSUES_URL = "https://github.com/asantinos/burnclaw/issues";
+const AUTHOR_URL = "https://github.com/asantinos";
 
 // % de una ventana de 5h consumido a 60s, por plan (estimaciones community).
 const PCT_AT_60S: Record<string, number> = { pro: 6.8, max: 3.4, max20: 1.4 };
@@ -114,7 +114,6 @@ function populateControls() {
     ["set-orange-border", "orange_border"],
     ["set-console-banner", "console_banner"],
     ["set-auto-start", "auto_start"],
-    ["set-start-minimized", "start_minimized"],
     ["set-notify-usage", "notify_usage_thresholds"],
     ["set-notify-finished", "notify_claude_finished"],
     ["set-notify-needs-you", "notify_claude_needs_you"],
@@ -124,6 +123,14 @@ function populateControls() {
     const c = input(id);
     if (c) c.checked = state[key];
   }
+
+  // Start mode: pill = start_minimized true, window = false.
+  document
+    .querySelectorAll("#set-start-mode .pref-select-option")
+    .forEach((opt) => {
+      const isPill = (opt as HTMLElement).dataset.value === "pill";
+      opt.classList.toggle("selected", isPill === state.start_minimized);
+    });
 
   const warnEl = input("set-warning-threshold");
   if (warnEl) warnEl.value = String(state.warning_threshold);
@@ -177,10 +184,25 @@ function updateTradeOff() {
 // ====================================================
 // ACCOUNT / HOOKS — estado vivo del backend
 // ====================================================
-async function renderAccount() {
+// `showChecking`: pinta el estado "checking" con el dot pulsante y lo mantiene
+// un mínimo visible. Solo para acciones explícitas (botón Re-check, abrir la
+// ventana). El re-check por foco es silencioso para no animar en cada alt-tab.
+async function renderAccount(showChecking = true) {
   const ccBox = el("cc-status");
   const credsBox = el("creds-file-status");
   if (!ccBox || !credsBox) return;
+
+  let minVisible: Promise<unknown> = Promise.resolve();
+  if (showChecking) {
+    ccBox.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot checking"></span>
+          <div class="status-text">Checking Claude Code…</div>
+        </div>
+      </div>`;
+    minVisible = new Promise((r) => setTimeout(r, 450));
+  }
 
   let credsState: "ok" | "missing" | "expired" | "unknown" = "unknown";
   try {
@@ -190,6 +212,8 @@ async function renderAccount() {
   } catch {
     credsState = "missing";
   }
+
+  await minVisible;
 
   if (credsState === "ok") {
     ccBox.innerHTML = `
@@ -389,19 +413,11 @@ function wireControls() {
     );
   });
 
-  // Cerrar (X) — oculta la ventana, no la destruye.
-  el("close-btn")?.addEventListener("click", () => {
-    invoke("close_settings_window").catch((e) =>
-      console.error("close_settings_window failed", e),
-    );
-  });
-
   // Toggles
   const bools: [string, BoolKey][] = [
     ["set-orange-border", "orange_border"],
     ["set-console-banner", "console_banner"],
     ["set-auto-start", "auto_start"],
-    ["set-start-minimized", "start_minimized"],
     ["set-notify-usage", "notify_usage_thresholds"],
     ["set-notify-finished", "notify_claude_finished"],
     ["set-notify-needs-you", "notify_claude_needs_you"],
@@ -414,6 +430,21 @@ function wireControls() {
       persist();
     });
   }
+
+  // Start mode segmented (pill / window)
+  document
+    .querySelectorAll("#set-start-mode .pref-select-option")
+    .forEach((opt) => {
+      opt.addEventListener("click", () => {
+        document
+          .querySelectorAll("#set-start-mode .pref-select-option")
+          .forEach((o) => o.classList.remove("selected"));
+        opt.classList.add("selected");
+        state.start_minimized =
+          (opt as HTMLElement).dataset.value === "pill";
+        persist();
+      });
+    });
 
   // Polling segmented
   document
@@ -456,6 +487,10 @@ function wireControls() {
   });
 
   // About — enlaces externos
+  el("link-author")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openUrl(AUTHOR_URL).catch((err) => console.error(err));
+  });
   el("link-source")?.addEventListener("click", (e) => {
     e.preventDefault();
     openUrl(SOURCE_URL).catch((err) => console.error(err));
@@ -508,9 +543,10 @@ listen("settings-reopened", () => {
   void refreshAll();
 });
 
-// Al recuperar el foco (p. ej. tras un `claude login` externo), re-check.
+// Al recuperar el foco (p. ej. tras un `claude login` externo), re-check
+// silencioso: actualiza el estado si cambió, sin animar en cada alt-tab.
 window.addEventListener("focus", () => {
-  void renderAccount();
+  void renderAccount(false);
   void renderHooks();
 });
 

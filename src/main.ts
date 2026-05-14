@@ -297,6 +297,9 @@ function collapse() {
 
 // Reset instantáneo a colapsado, al abrir desde el tray.
 function resetCollapsed() {
+  // Al reabrir, la ventana vuelve a ser interactiva; el siguiente mousemove
+  // reevalúa si el cursor está sobre un margen.
+  void setCursorIgnored(false);
   state = "collapsed";
   els.shell.style.transition = "none";
   els.shell.classList.remove("expanded", "settled");
@@ -459,6 +462,86 @@ setInterval(() => {
   els.weeklyCountdown.textContent = formatCountdown(latest.weekly_reset_at);
 }, 1000);
 
+// ---------- click-through en los márgenes transparentes ----------
+// La ventana es más ancha que la pill: hace falta sitio para los tooltips de
+// la pill y para que el ancho sea constante (sin flick al morfear). Esos
+// márgenes son transparentes pero por defecto capturan el click. Cuando el
+// cursor está sobre un margen, la ventana ignora eventos de ratón y el click
+// pasa a la app que haya detrás. Al ignorarlos el webview deja de recibir
+// `mousemove`, así que la reentrada sobre el shell se detecta sondeando la
+// posición global del cursor (comando `cursor_position`).
+
+// Factor de escala del monitor (constante); se cachea en bootstrap.
+let windowScale = 1;
+let cursorIgnored = false;
+let reentryPoll: number | null = null;
+// Posición de la ventana (px físicos) capturada al empezar a ignorar. Mientras
+// se ignora la ventana no se mueve (arrastrarla requiere clicar el shell, que
+// entonces no es accesible). El RECT del shell sí puede cambiar de alto si
+// llega el console banner, así que se relee del DOM en cada tick del poll.
+let ignoredWinPos: { x: number; y: number } | null = null;
+
+async function setCursorIgnored(ignore: boolean) {
+  if (ignore === cursorIgnored) return;
+  cursorIgnored = ignore;
+  try {
+    if (ignore) {
+      ignoredWinPos = await appWindow.outerPosition();
+      await appWindow.setIgnoreCursorEvents(true);
+      startReentryPoll();
+    } else {
+      stopReentryPoll();
+      ignoredWinPos = null;
+      await appWindow.setIgnoreCursorEvents(false);
+    }
+  } catch (e) {
+    console.error("setIgnoreCursorEvents failed:", e);
+    cursorIgnored = false;
+  }
+}
+
+function startReentryPoll() {
+  if (reentryPoll !== null) return;
+  reentryPoll = window.setInterval(async () => {
+    if (!ignoredWinPos) {
+      void setCursorIgnored(false);
+      return;
+    }
+    try {
+      const [cx, cy] = await invoke<[number, number]>("cursor_position");
+      // Rect del shell en px físicos de pantalla, recalculado cada tick.
+      const r = els.shell.getBoundingClientRect();
+      const left = ignoredWinPos.x + r.left * windowScale;
+      const top = ignoredWinPos.y + r.top * windowScale;
+      const right = ignoredWinPos.x + r.right * windowScale;
+      const bottom = ignoredWinPos.y + r.bottom * windowScale;
+      if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
+        void setCursorIgnored(false);
+      }
+    } catch {
+      // Si no se puede leer el cursor, no dejar la ventana inservible.
+      void setCursorIgnored(false);
+    }
+  }, 90);
+}
+
+function stopReentryPoll() {
+  if (reentryPoll !== null) {
+    clearInterval(reentryPoll);
+    reentryPoll = null;
+  }
+}
+
+// Mientras la ventana NO ignora eventos, cada mousemove decide: si el cursor
+// está sobre un margen transparente (target fuera del shell) se pasa a modo
+// click-through.
+window.addEventListener("mousemove", (e) => {
+  if (cursorIgnored) return;
+  if (!els.shell.contains(e.target as Node)) {
+    void setCursorIgnored(true);
+  }
+});
+
 // ---------- interactions ----------
 
 // Drag vs click: startDragging() captura el ratón y se "come" el click, así
@@ -526,6 +609,7 @@ els.viewDetails.addEventListener("click", (e) => {
 // ---------- bootstrap ----------
 
 async function bootstrap() {
+  windowScale = await appWindow.scaleFactor();
   // tamaño inicial del shell + ventana, sin animación
   computeWindowWidth();
   els.shell.style.transition = "none";

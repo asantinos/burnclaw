@@ -81,6 +81,17 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
     Ok(())
 }
 
+/// Posición global del cursor en píxeles físicos. La usa el frontend para
+/// detectar cuándo el cursor vuelve sobre el shell mientras la ventana ignora
+/// eventos de ratón (click-through en los márgenes transparentes de la pill):
+/// al ignorarlos, el webview deja de recibir `mousemove`, así que la reentrada
+/// solo se puede detectar sondeando la posición real del cursor.
+#[tauri::command]
+pub fn cursor_position(app: AppHandle) -> Result<(f64, f64), String> {
+    let pos = app.cursor_position().map_err(|e| e.to_string())?;
+    Ok((pos.x, pos.y))
+}
+
 // ---------------------------------------------------------------------------
 // Setup wizard — credenciales
 // ---------------------------------------------------------------------------

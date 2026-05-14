@@ -101,6 +101,7 @@ pub fn run() {
             commands::get_current_usage,
             commands::get_current_status,
             commands::resize_shell_window,
+            commands::cursor_position,
             commands::force_refresh,
             commands::check_credentials,
             commands::run_claude_login,
@@ -139,6 +140,8 @@ pub fn run() {
                 }
             } else {
                 init_tray_and_pill(app.handle())?;
+                // Mostrar la pill al arrancar, no solo el tray icon.
+                tray::show_main_window(app.handle());
             }
 
             Ok(())

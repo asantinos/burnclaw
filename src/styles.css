@@ -1,0 +1,682 @@
+:root {
+  --bg: #1a1a1a;
+  --surface: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #fafafa;
+  --text-secondary: #888;
+  --text-tertiary: #666;
+  --text-quaternary: #555;
+
+  --accent: #ff6b35;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --orange: #ff6b35;
+  --danger: #ef4444;
+  --blue: #60a5fa;
+  --gray: #6b7280;
+
+  --claude-orange: #d97706;
+  --claude-orange-bright: #f97316;
+  --claude-orange-glow: rgba(217, 119, 6, 0.55);
+
+  --font-sans: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  --morph-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* La ventana es fija y mayor que el contenido; este padding deja sitio a la
+   sombra del shell y ancla el shell abajo-derecha. */
+body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 18px;
+}
+
+/* ---------- Shell: el contenedor que se morfea entre pill y widget ---------- */
+
+.shell {
+  position: relative;
+  background: var(--bg);
+  /* El "borde" es box-shadow (no afecta al layout, así el tamaño del shell
+     es exactamente el del contenido). */
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  user-select: none;
+  transition: width 320ms var(--morph-ease), height 320ms var(--morph-ease),
+    border-radius 320ms var(--morph-ease), box-shadow 200ms ease;
+}
+
+/* Cuando la transición termina, overflow:visible para que los tooltips
+   puedan salir del shell hacia el margen transparente de la ventana. */
+.shell.settled {
+  overflow: visible;
+}
+
+.shell.collapsed {
+  border-radius: 999px;
+}
+
+.shell.expanded {
+  border-radius: 12px;
+}
+
+.shell img,
+.shell span {
+  -webkit-user-drag: none;
+}
+
+/* ---------- Crossfade de los dos contenidos ---------- */
+
+.pill-content,
+.widget-content {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transition: opacity 180ms ease;
+}
+
+.pill-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 10px;
+}
+
+.widget-content {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  padding: 16px 18px;
+  gap: 12px;
+}
+
+.shell.collapsed .pill-content {
+  opacity: 1;
+}
+.shell.collapsed .widget-content {
+  opacity: 0;
+  pointer-events: none;
+}
+.shell.expanded .pill-content {
+  opacity: 0;
+  pointer-events: none;
+}
+.shell.expanded .widget-content {
+  opacity: 1;
+}
+
+/* ---------- Pill: status dot ---------- */
+
+.pill-content .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gray);
+  flex-shrink: 0;
+  position: relative;
+  cursor: help;
+}
+.pill-content .status-dot.ok {
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+.pill-content .status-dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+}
+.pill-content .status-dot.orange {
+  background: var(--orange);
+  box-shadow: 0 0 6px rgba(255, 107, 53, 0.5);
+}
+.pill-content .status-dot.danger {
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+.pill-content .status-dot.blue {
+  background: var(--blue);
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.5);
+}
+.pill-content .status-dot.gray {
+  background: var(--gray);
+}
+
+/* ---------- Pill: progress rings ---------- */
+
+.ring {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.ring svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+.ring .track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 3;
+}
+.ring .progress {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke: var(--ok);
+  transition: stroke-dashoffset 600ms var(--morph-ease), stroke 300ms ease;
+}
+.ring .progress.ok {
+  stroke: var(--ok);
+}
+.ring .progress.warn {
+  stroke: var(--warn);
+}
+.ring .progress.orange {
+  stroke: var(--orange);
+}
+.ring .progress.danger {
+  stroke: var(--danger);
+}
+.ring .label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.ring .label.warn {
+  color: var(--warn);
+}
+.ring .label.orange {
+  color: var(--orange);
+}
+.ring .label.danger {
+  color: var(--danger);
+}
+.ring.flash .progress {
+  filter: drop-shadow(0 0 6px currentColor);
+  transition: filter 500ms ease;
+}
+
+/* ---------- Widget: header ---------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#mascot {
+  width: 22px;
+  height: 22px;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.product-name {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.status-indicator span:last-child {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.widget-content .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gray);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.widget-content .status-dot.ok {
+  background: var(--ok);
+}
+.widget-content .status-dot.warn {
+  background: var(--warn);
+}
+.widget-content .status-dot.orange {
+  background: var(--orange);
+}
+.widget-content .status-dot.danger {
+  background: var(--danger);
+}
+.widget-content .status-dot.blue {
+  background: var(--blue);
+}
+.widget-content .status-dot.gray {
+  background: var(--gray);
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 3px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 150ms ease, background 150ms ease;
+}
+.close-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sep {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* ---------- Widget: metrics ---------- */
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.metric-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.metric-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.claim-tag {
+  display: none;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  margin-left: 6px;
+  border-radius: 3px;
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--warn);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.claim-tag.active {
+  display: inline-block;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.metric-value.warn {
+  color: var(--warn);
+}
+.metric-value.orange {
+  color: var(--accent);
+}
+.metric-value.danger {
+  color: var(--danger);
+}
+
+.metric-bar {
+  height: 5px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.metric-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--ok);
+  border-radius: 3px;
+  transition: width 600ms var(--morph-ease);
+}
+.metric-bar-fill.ok {
+  background: var(--ok);
+}
+.metric-bar-fill.warn {
+  background: var(--warn);
+}
+.metric-bar-fill.orange {
+  background: var(--accent);
+}
+.metric-bar-fill.danger {
+  background: var(--danger);
+}
+
+.metric-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Widget: footer ---------- */
+
+.footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.footer a {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 150ms ease;
+  user-select: auto;
+}
+.footer a:hover {
+  color: var(--text-primary);
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 150ms ease, background 150ms ease;
+}
+.refresh-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+.refresh-btn svg {
+  display: block;
+}
+.refresh-btn.spinning svg {
+  animation: refreshSpin 600ms var(--morph-ease);
+}
+@keyframes refreshSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Console banner (SOLO Claude Code activity) ---------- */
+
+.console-banner {
+  background: #0d0d0d;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--claude-orange-bright);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.3;
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+.console-banner::before {
+  content: "$";
+  color: var(--claude-orange);
+  font-weight: 700;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.console-banner.awaiting {
+  border-color: var(--claude-orange-bright);
+  color: var(--claude-orange-bright);
+  background: rgba(249, 115, 22, 0.04);
+}
+.console-banner.finished {
+  border-color: rgba(74, 222, 128, 0.3);
+  color: var(--ok);
+}
+.console-banner.finished::before {
+  content: "✓";
+  color: var(--ok);
+}
+.console-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 11px;
+  background: var(--claude-orange-bright);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursorBlink 900ms steps(1, end) infinite;
+}
+@keyframes cursorBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.console-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 3px
+  );
+  pointer-events: none;
+}
+
+/* ---------- Claude Code activity: borde del shell (eje separado) ---------- */
+/* No toca status dot ni uso. */
+
+body.cc-active .shell {
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 0 0 1px var(--claude-orange-glow), 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+body.cc-working .shell {
+  animation: workingBorderPulse 1.6s ease-in-out infinite;
+}
+
+body.cc-awaiting .shell {
+  animation: awaitingBorderBlink 700ms ease-in-out infinite;
+}
+
+@keyframes workingBorderPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+      0 0 0 1px var(--claude-orange-bright),
+      0 0 10px rgba(249, 115, 22, 0.25), 0 2px 8px rgba(0, 0, 0, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+      0 0 0 1px var(--claude-orange-bright),
+      0 0 18px rgba(249, 115, 22, 0.6), 0 2px 8px rgba(0, 0, 0, 0.22);
+  }
+}
+
+@keyframes awaitingBorderBlink {
+  0%, 100% {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+      0 0 0 1.5px var(--claude-orange-bright),
+      0 0 10px rgba(249, 115, 22, 0.3), 0 2px 8px rgba(0, 0, 0, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+      0 0 0 2px var(--claude-orange-bright),
+      0 0 24px rgba(249, 115, 22, 0.85), 0 2px 8px rgba(0, 0, 0, 0.22);
+  }
+}
+
+/* ---------- Tooltips ---------- */
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2a2a2a;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  animation: tooltipFadeIn 150ms ease;
+}
+
+[data-tooltip]:hover::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #2a2a2a;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* below: tooltip por debajo (fila superior del widget) */
+[data-tooltip-pos="below"]:hover::after {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+[data-tooltip-pos="below"]:hover::before {
+  bottom: auto;
+  top: calc(100% + 2px);
+  border-top-color: transparent;
+  border-bottom-color: #2a2a2a;
+}
+
+/* end: anclado al borde derecho del elemento (se extiende hacia dentro) */
+[data-tooltip-align="end"]:hover::after {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation: tooltipFadeInPlain 150ms ease;
+}
+[data-tooltip-align="end"]:hover::before {
+  left: auto;
+  right: 5px;
+  transform: none;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes tooltipFadeInPlain {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

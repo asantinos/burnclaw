@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BurnClaw Setup</title>
+    <link rel="stylesheet" href="/src/setup.css" />
+    <script type="module" src="/src/setup.ts" defer></script>
+  </head>
+  <body>
+    <div class="wizard">
+      <button class="close-btn" id="close-btn" aria-label="Close">
+        <svg class="close-icon-svg" viewBox="0 0 16 16">
+          <path
+            d="M4 4L12 12 M12 4L4 12"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-logo">
+            <img src="/mascot.png" alt="BurnClaw" />
+          </div>
+          <span class="sidebar-brand-name">BurnClaw</span>
+        </div>
+
+        <div class="sidebar-steps" id="sidebar-steps">
+          <div class="step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">Welcome</div>
+          </div>
+          <div class="step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">Connection</div>
+          </div>
+          <div class="step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">Activity hooks</div>
+          </div>
+          <div class="step" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-label">Preferences</div>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">v0.1.0</div>
+      </aside>
+
+      <div class="panel">
+        <div class="panel-body">
+          <!-- STEP 1: WELCOME -->
+          <div class="step-content active" data-step-content="1">
+            <div class="welcome">
+              <div class="welcome-logo">
+                <img src="/mascot.png" alt="BurnClaw" />
+              </div>
+              <div class="welcome-name">BurnClaw</div>
+              <div class="welcome-tagline">
+                Keep an eye on your Claude usage from the system tray.
+                Real-time session and weekly limits, without leaving your
+                terminal.
+              </div>
+              <div class="welcome-meta">Windows · requires Claude Code</div>
+            </div>
+          </div>
+
+          <!-- STEP 2: CREDENTIALS -->
+          <div class="step-content" data-step-content="2">
+            <h2 class="step-title">Connect Claude Code</h2>
+            <p class="step-desc">
+              BurnClaw reads the OAuth token from your local Claude Code
+              installation. Nothing is sent to external servers.
+            </p>
+            <div id="creds-section"></div>
+          </div>
+
+          <!-- STEP 3: HOOKS -->
+          <div class="step-content" data-step-content="3">
+            <h2 class="step-title">
+              Activity hooks <span class="badge">Optional</span>
+            </h2>
+            <p class="step-desc">
+              Lets BurnClaw show when Claude Code is working — an orange border
+              while a session runs, a notification when Claude needs you.
+            </p>
+            <div id="hooks-section"></div>
+          </div>
+
+          <!-- STEP 4: PREFERENCES -->
+          <div class="step-content" data-step-content="4">
+            <h2 class="step-title">Preferences</h2>
+            <p class="step-desc">You can change these later from the tray menu.</p>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Start with Windows</div>
+                  <div class="pref-desc">
+                    Launch BurnClaw automatically when you log in.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="pref-autostart" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-left" style="margin-bottom: 12px">
+                <div class="pref-title">Polling interval</div>
+                <div class="pref-desc">How often BurnClaw checks your usage.</div>
+              </div>
+              <div class="pref-select" id="pref-polling" style="display: inline-flex">
+                <div class="pref-select-option" data-value="30">30s</div>
+                <div class="pref-select-option selected" data-value="60">60s</div>
+                <div class="pref-select-option" data-value="120">120s</div>
+                <div class="pref-select-option" data-value="300">300s</div>
+              </div>
+              <div class="pref-trade-off" id="trade-off">
+                At 60s, BurnClaw uses about <strong id="pct-display">3.4%</strong>
+                of a session window on your <strong id="plan-display">max</strong>
+                plan.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-footer" id="panel-footer"></div>
+      </div>
+
+      <!-- MODAL -->
+      <div class="modal-backdrop" id="modal-backdrop">
+        <div class="modal">
+          <div class="modal-title">Remove activity hooks?</div>
+          <div class="modal-text">
+            This removes BurnClaw's hooks from your Claude Code settings. Usage
+            tracking keeps working, but the orange border and activity
+            notifications stop.
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+            <button class="modal-btn-danger" id="modal-confirm">Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

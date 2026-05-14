@@ -65,13 +65,18 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
         target_h.max(1) as u32,
     ))
     .map_err(|e| e.to_string())?;
-    // Borde superior fijo (cur_pos.y) y centro horizontal fijo: la mitad del
-    // cambio de ancho se reparte a cada lado; la altura crece hacia abajo.
-    win.set_position(PhysicalPosition::new(
-        cur_pos.x + delta_x / 2,
-        cur_pos.y,
-    ))
-    .map_err(|e| e.to_string())?;
+    // Solo se reposiciona si cambió el ancho (para mantener fijo el centro
+    // horizontal hay que mover la ventana media diferencia de ancho). En el
+    // caso normal solo varía el alto: `set_size` ya mantiene fija la esquina
+    // superior-izquierda, así que NO se toca la posición — el resize queda
+    // atómico y no hay flick. set_size + set_position no lo son.
+    if delta_x != 0 {
+        win.set_position(PhysicalPosition::new(
+            cur_pos.x + delta_x / 2,
+            cur_pos.y,
+        ))
+        .map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }

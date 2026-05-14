@@ -222,12 +222,24 @@ type ShellState = "collapsed" | "expanded";
 let state: ShellState = "collapsed";
 
 const BODY_PADDING = 18; // coincide con `body { padding }` en styles.css — sombra
-// Margen transparente extra en estado colapsado para que los tooltips de la
-// pill (que se despliegan hacia ABAJO) no se recorten contra el borde de la
-// ventana. El shell está anclado arriba-centro, así que el extra de ancho se
-// reparte a ambos lados y el de alto va por debajo.
+// Margen transparente extra: en estado colapsado los tooltips de la pill se
+// despliegan hacia los lados / abajo y no deben recortarse contra el borde de
+// la ventana.
 const COLLAPSED_TOOLTIP_SIDE = 80;
 const COLLAPSED_TOOLTIP_BELOW = 32;
+
+// El ANCHO de la ventana es constante (el del estado más ancho). Así el morph
+// pill<->widget nunca redimensiona en X: el shell, centrado por flexbox en una
+// ventana de ancho fijo, mantiene su centro horizontal sin reposicionar la
+// ventana. Reposicionar en X durante el resize (set_size + set_position no son
+// atómicos) causaba un flick de ~15px al terminar de colapsar.
+let windowWidth = 0;
+function computeWindowWidth() {
+  const widgetW = els.widgetContent.offsetWidth + BODY_PADDING * 2;
+  const pillW =
+    els.pillContent.offsetWidth + BODY_PADDING * 2 + COLLAPSED_TOOLTIP_SIDE * 2;
+  windowWidth = Math.max(widgetW, pillW);
+}
 
 function activeContent() {
   return state === "collapsed" ? els.pillContent : els.widgetContent;
@@ -239,19 +251,15 @@ function applyShellSize() {
   els.shell.style.height = `${el.offsetHeight}px`;
 }
 
-// La ventana del SO sigue al contenido (shell + padding del body por lado).
-// Anclada arriba-centro: crece hacia abajo. En estado colapsado lleva margen
-// extra a los lados y por debajo para los tooltips de la pill.
+// La ventana del SO sigue al ALTO del contenido (el ancho es constante, ver
+// `windowWidth`). Anclada arriba: crece hacia abajo. En estado colapsado lleva
+// margen extra por debajo para los tooltips de la pill.
 function resizeWindowToContent() {
   const el = activeContent();
-  let width = el.offsetWidth + BODY_PADDING * 2;
   let height = el.offsetHeight + BODY_PADDING * 2;
-  if (state === "collapsed") {
-    width += COLLAPSED_TOOLTIP_SIDE * 2;
-    height += COLLAPSED_TOOLTIP_BELOW;
-  }
-  return invoke("resize_shell_window", { width, height }).catch((e) =>
-    console.error("resize_shell_window failed:", e),
+  if (state === "collapsed") height += COLLAPSED_TOOLTIP_BELOW;
+  return invoke("resize_shell_window", { width: windowWidth, height }).catch(
+    (e) => console.error("resize_shell_window failed:", e),
   );
 }
 
@@ -300,15 +308,25 @@ function resetCollapsed() {
   resizeWindowToContent();
 }
 
+let pendingResize = false;
 els.shell.addEventListener("transitionend", (e) => {
   if (
     e.target === els.shell &&
     (e.propertyName === "width" || e.propertyName === "height")
   ) {
     els.shell.classList.add("settled");
-    // expand: la ventana ya tiene el tamaño correcto (no-op).
-    // collapse / banner: la ventana se ajusta al nuevo tamaño del shell.
-    resizeWindowToContent();
+    // width y height terminan en el mismo frame → el handler se dispara dos
+    // veces. Coalescer en un único resize: dos `invoke` en paralelo hacen que
+    // el 2º lea un tamaño de ventana a medio aplicar y reposicione de más,
+    // produciendo un flick horizontal al terminar de colapsar.
+    if (pendingResize) return;
+    pendingResize = true;
+    requestAnimationFrame(() => {
+      pendingResize = false;
+      // expand: la ventana ya tiene el tamaño correcto (no-op).
+      // collapse / banner: la ventana se ajusta al nuevo tamaño del shell.
+      resizeWindowToContent();
+    });
   }
 });
 
@@ -509,6 +527,7 @@ els.viewDetails.addEventListener("click", (e) => {
 
 async function bootstrap() {
   // tamaño inicial del shell + ventana, sin animación
+  computeWindowWidth();
   els.shell.style.transition = "none";
   applyShellSize();
   void els.shell.offsetWidth;

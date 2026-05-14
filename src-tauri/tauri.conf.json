@@ -39,6 +39,20 @@
         "resizable": false,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "settings",
+        "title": "BurnClaw Settings",
+        "url": "settings.html",
+        "width": 640,
+        "height": 460,
+        "decorations": false,
+        "transparent": false,
+        "skipTaskbar": false,
+        "alwaysOnTop": false,
+        "resizable": false,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

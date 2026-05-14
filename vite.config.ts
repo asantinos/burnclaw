@@ -10,12 +10,14 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // multipage: la ventana principal (index.html) y el setup wizard (setup.html)
+  // multipage: ventana principal (index.html), setup wizard (setup.html) y
+  // ventana de ajustes (settings.html)
   build: {
     rollupOptions: {
       input: {
         main: "index.html",
         setup: "setup.html",
+        settings: "settings.html",
       },
     },
   },

@@ -317,8 +317,27 @@ els.shell.addEventListener("transitionend", (e) => {
 let workingTimeout: number | null = null;
 let activeTimeout: number | null = null;
 
+// Ajustes vivos: la ventana de Settings los cambia y emite `settings-changed`.
+// Gobiernan los dos efectos visuales de actividad de Claude Code.
+let orangeBorderEnabled = true;
+let consoleBannerEnabled = true;
+
+function applySettings(s: any) {
+  orangeBorderEnabled = s?.orange_border ?? true;
+  consoleBannerEnabled = s?.console_banner ?? true;
+  // Aplica el cambio al instante, sin esperar al siguiente evento de Claude.
+  if (!orangeBorderEnabled) {
+    document.body.classList.remove("cc-active", "cc-working", "cc-awaiting");
+  }
+  if (!consoleBannerEnabled) {
+    $("console-banner").style.display = "none";
+    if (state === "expanded") fitShellHeight();
+  }
+}
+
 function setClaudeState(s: "idle" | "cc-active" | "cc-working" | "cc-awaiting") {
   document.body.classList.remove("cc-active", "cc-working", "cc-awaiting");
+  if (!orangeBorderEnabled) return;
   if (s !== "idle") document.body.classList.add(s);
 }
 
@@ -331,6 +350,12 @@ function flashRings() {
 
 function updateConsoleBanner(bannerState: string, evt: any) {
   const banner = $("console-banner");
+
+  if (!consoleBannerEnabled) {
+    banner.style.display = "none";
+    if (state === "expanded") fitShellHeight();
+    return;
+  }
 
   if (bannerState === "hidden") {
     banner.style.display = "none";
@@ -406,6 +431,7 @@ listen<StatusSnapshot>("status-updated", (e) => renderStatus(e.payload));
 listen<string>("usage-error", (e) => renderError(e.payload));
 listen("claude-event", (e) => handleClaudeEvent(e.payload));
 listen("window-shown", () => resetCollapsed());
+listen("settings-changed", (e) => applySettings(e.payload));
 
 // tick: updated-ago + countdowns en vivo
 setInterval(() => {
@@ -489,6 +515,12 @@ async function bootstrap() {
   els.shell.style.transition = "";
   els.shell.classList.add("settled");
   await resizeWindowToContent();
+
+  try {
+    applySettings(await invoke("get_settings"));
+  } catch (e) {
+    console.error("get_settings failed", e);
+  }
 
   try {
     const usage = await invoke<UsageSnapshot | null>("get_current_usage");

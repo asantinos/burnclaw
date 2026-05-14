@@ -2,6 +2,7 @@ mod anthropic;
 mod commands;
 mod credentials;
 mod hook_server;
+mod logging;
 mod notifications;
 mod poller;
 mod setup_state;
@@ -12,6 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use anthropic::UsageSnapshot;
 use notifications::NotificationState;
+use setup_state::SetupState;
 use status::StatusSnapshot;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
@@ -21,45 +23,52 @@ pub type SharedStatus = Arc<Mutex<Option<StatusSnapshot>>>;
 pub type ForceRefresh = Arc<Notify>;
 pub type SharedNotificationState = Arc<Mutex<NotificationState>>;
 /// Última posición (top-left, physical px) de la ventana al ocultarla, para
-/// restaurarla en el siguiente show en vez de reposicionar junto al tray.
+/// restaurarla en el siguiente show en vez de reposicionar.
 pub type LastWindowPos = Arc<Mutex<Option<(i32, i32)>>>;
+/// Ajustes vivos de la app, compartidos: el poller lee el intervalo cada vuelta,
+/// notifications lee umbrales/toggles, y `save_settings` los actualiza.
+pub type SharedSettings = Arc<Mutex<SetupState>>;
 
 /// Arranca el modo normal de la app: tray icon, poller de uso, poller de
 /// status y servidor de hooks. Se llama al arrancar (si el setup ya está
 /// completo y hay credenciales) o desde `complete_setup` al cerrar el wizard.
+/// Idempotente: si el tray ya existe, no re-inicializa.
 pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    // Idempotente: complete_setup puede llamarlo de nuevo (p. ej. al reabrir
-    // Settings y darle a Done otra vez). Si el tray ya existe, no re-inicializa.
     if tray::is_initialized(app) {
         return Ok(());
     }
     tray::setup(app)?;
 
+    let settings = app.state::<SharedSettings>().inner().clone();
+
     // Poller de uso — necesita el token OAuth.
     match credentials::load() {
         Ok(oauth) => {
-            let interval = setup_state::SetupState::load()
-                .polling_interval_secs
-                .max(10);
             let handle = app.clone();
             let usage = app.state::<SharedUsage>().inner().clone();
             let notif = app.state::<SharedNotificationState>().inner().clone();
             let force_refresh = app.state::<ForceRefresh>().inner().clone();
             let token = oauth.access_token.clone();
+            let poller_settings = settings.clone();
             tauri::async_runtime::spawn(async move {
-                poller::run(handle, usage, notif, force_refresh, token, interval).await;
+                poller::run(handle, usage, notif, force_refresh, token, poller_settings)
+                    .await;
             });
         }
         Err(e) => {
-            eprintln!("ERR: credentials load failed in init_tray_and_pill: {}", e);
+            logging::app(&format!(
+                "credentials load failed in init_tray_and_pill: {}",
+                e
+            ));
         }
     }
 
     // Poller de status — no necesita credenciales.
     let status_handle = app.clone();
     let status = app.state::<SharedStatus>().inner().clone();
+    let status_settings = settings.clone();
     tauri::async_runtime::spawn(async move {
-        poller::run_status(status_handle, status).await;
+        poller::run_status(status_handle, status, status_settings).await;
     });
 
     // Servidor de hooks de Claude Code.
@@ -77,6 +86,7 @@ pub fn run() {
     let notification_state: SharedNotificationState =
         Arc::new(Mutex::new(NotificationState::new()));
     let last_window_pos: LastWindowPos = Arc::new(Mutex::new(None));
+    let settings: SharedSettings = Arc::new(Mutex::new(SetupState::load()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -86,6 +96,7 @@ pub fn run() {
         .manage(force_refresh)
         .manage(notification_state)
         .manage(last_window_pos)
+        .manage(settings)
         .invoke_handler(tauri::generate_handler![
             commands::get_current_usage,
             commands::get_current_status,
@@ -100,20 +111,23 @@ pub fn run() {
             commands::set_auto_start,
             commands::complete_setup,
             commands::exit_app,
+            commands::get_settings,
+            commands::save_settings,
+            commands::reset_settings,
+            commands::open_logs_folder,
+            commands::close_settings_window,
         ])
         .setup(|app| {
-            let setup = setup_state::SetupState::load();
+            let completed = app.state::<SharedSettings>().lock().unwrap().completed;
             let creds_ok = credentials::load().is_ok();
 
-            if !setup.completed || !creds_ok {
+            if !completed || !creds_ok {
                 // Primer arranque o credenciales rotas: mostrar el wizard.
-                // NO se arranca tray/pill todavía — eso lo hace complete_setup.
                 if let Some(win) = app.get_webview_window("setup") {
                     let _ = win.show();
                     let _ = win.set_focus();
                 }
             } else {
-                // Flujo normal.
                 init_tray_and_pill(app.handle())?;
             }
 

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BurnClaw Settings</title>
+    <link rel="stylesheet" href="/src/settings.css" />
+    <script type="module" src="/src/settings.ts" defer></script>
+  </head>
+  <body>
+    <div class="settings">
+      <button class="close-btn" id="close-btn" aria-label="Close">
+        <svg class="close-icon-svg" viewBox="0 0 16 16">
+          <path
+            d="M4 4L12 12 M12 4L4 12"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-logo">
+            <img src="/mascot.png" alt="BurnClaw" />
+          </div>
+          <span class="sidebar-brand-name">Settings</span>
+        </div>
+
+        <div class="sidebar-heading">General</div>
+        <div class="nav-items">
+          <button class="nav-item active" data-section="account">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="5.5" r="2.5" />
+              <path d="M3 13.5c0-2.5 2-4 5-4s5 1.5 5 4" />
+            </svg>
+            Account
+          </button>
+          <button class="nav-item" data-section="hooks">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2v6" />
+              <path d="M8 8a3 3 0 0 0-3 3v3" />
+              <circle cx="8" cy="2" r="1" />
+            </svg>
+            Activity hooks
+          </button>
+          <button class="nav-item" data-section="behavior">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="2.5" />
+              <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06M12.95 12.95l-1.06-1.06M4.11 4.11L3.05 3.05" />
+            </svg>
+            Behavior
+          </button>
+        </div>
+
+        <div class="sidebar-heading">More</div>
+        <div class="nav-items">
+          <button class="nav-item" data-section="advanced">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 4h12M2 8h12M2 12h12" />
+            </svg>
+            Advanced
+          </button>
+          <button class="nav-item" data-section="about">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="6.5" />
+              <path d="M8 7.5v3.5M8 5v.5" />
+            </svg>
+            About
+          </button>
+        </div>
+
+        <div class="sidebar-footer">v0.1.0</div>
+      </aside>
+
+      <div class="panel">
+        <div class="panel-body">
+          <!-- ============ ACCOUNT ============ -->
+          <div class="section-content active" data-section-content="account">
+            <h2 class="section-title">Account</h2>
+            <p class="section-desc">
+              Connection to your local Claude Code installation. Nothing is
+              sent to external servers.
+            </p>
+
+            <div class="section-subheading">Claude Code</div>
+            <div id="cc-status">
+              <div class="status-line">
+                <div class="status-line-header">
+                  <span class="status-dot checking"></span>
+                  <div class="status-text">Checking Claude Code…</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-subheading">Credentials file</div>
+            <div id="creds-file-status">
+              <div class="status-line">
+                <div class="status-line-header">
+                  <span class="status-dot"></span>
+                  <div class="status-text">Checking…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============ ACTIVITY HOOKS ============ -->
+          <div class="section-content" data-section-content="hooks">
+            <h2 class="section-title">Activity hooks</h2>
+            <p class="section-desc">
+              When enabled, Claude Code pings BurnClaw on lifecycle events —
+              session start, tool calls, input requests. BurnClaw reacts
+              visually (orange border) and with notifications.
+            </p>
+
+            <div class="section-subheading">Status</div>
+            <div id="hooks-status">
+              <div class="status-line">
+                <div class="status-line-header">
+                  <span class="status-dot checking"></span>
+                  <div class="status-text">Checking hooks…</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-subheading">Settings file</div>
+            <div id="hooks-backup">
+              <div class="status-line">
+                <div class="status-line-header">
+                  <span class="status-dot"></span>
+                  <div class="status-text">Checking…</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-subheading">Visual feedback</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Orange border on activity</div>
+                  <div class="pref-desc">
+                    Tint pill/widget border while a Claude Code session is
+                    active.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-orange-border" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Console banner inside widget</div>
+                  <div class="pref-desc">
+                    Show current tool/event line in the expanded widget.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-console-banner" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============ BEHAVIOR ============ -->
+          <div class="section-content" data-section-content="behavior">
+            <h2 class="section-title">Behavior</h2>
+            <p class="section-desc">How BurnClaw runs on your machine.</p>
+
+            <div class="section-subheading">Startup</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Start with Windows</div>
+                  <div class="pref-desc">
+                    Launch BurnClaw automatically when you log in.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-auto-start" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Start minimized to pill</div>
+                  <div class="pref-desc">
+                    Open as the compact pill rather than the expanded widget.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-start-minimized" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="section-subheading">Polling</div>
+
+            <div class="pref-row">
+              <div class="pref-left" style="margin-bottom: 12px">
+                <div class="pref-title">Polling interval</div>
+                <div class="pref-desc">
+                  How often BurnClaw checks your usage.
+                </div>
+              </div>
+              <div class="pref-select" id="set-polling">
+                <div class="pref-select-option" data-value="30">30s</div>
+                <div class="pref-select-option selected" data-value="60">
+                  60s
+                </div>
+                <div class="pref-select-option" data-value="120">120s</div>
+                <div class="pref-select-option" data-value="300">300s</div>
+              </div>
+              <div class="pref-trade-off" id="set-trade-off">
+                At 60s, BurnClaw uses about <strong>3.4%</strong> of a session
+                window on your <strong>max</strong> plan.
+              </div>
+            </div>
+          </div>
+
+          <!-- ============ ADVANCED ============ -->
+          <div class="section-content" data-section-content="advanced">
+            <h2 class="section-title">Advanced</h2>
+            <p class="section-desc">
+              Customize thresholds, notifications, and access logs.
+            </p>
+
+            <div class="section-subheading">Notification thresholds</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Warning threshold</div>
+                  <div class="pref-desc">
+                    Notify when usage crosses this percentage.
+                  </div>
+                </div>
+                <div class="number-input">
+                  <input
+                    type="number"
+                    id="set-warning-threshold"
+                    value="80"
+                    min="0"
+                    max="100"
+                  />
+                  <span class="stepper-suffix">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Critical threshold</div>
+                  <div class="pref-desc">
+                    Notify again at this higher percentage.
+                  </div>
+                </div>
+                <div class="number-input">
+                  <input
+                    type="number"
+                    id="set-critical-threshold"
+                    value="95"
+                    min="0"
+                    max="100"
+                  />
+                  <span class="stepper-suffix">%</span>
+                </div>
+              </div>
+
+              <div class="threshold-bar">
+                <div
+                  class="threshold-segment"
+                  id="thr-segment"
+                  style="left: 0; right: 20%; background: var(--accent-subtle)"
+                ></div>
+                <div
+                  class="threshold-marker"
+                  id="thr-warn-marker"
+                  style="left: 80%"
+                  data-label="warn 80%"
+                ></div>
+                <div
+                  class="threshold-marker"
+                  id="thr-crit-marker"
+                  style="left: 95%"
+                  data-label="crit 95%"
+                ></div>
+              </div>
+            </div>
+
+            <div class="section-subheading">Notifications</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Usage threshold alerts</div>
+                  <div class="pref-desc">
+                    Native Windows toast when crossing warning/critical.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-notify-usage" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">"Claude finished" notification</div>
+                  <div class="pref-desc">
+                    When a Claude Code response completes.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-notify-finished" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">"Claude needs you" notification</div>
+                  <div class="pref-desc">
+                    When Claude Code waits for your input.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-notify-needs-you" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Service incident alerts</div>
+                  <div class="pref-desc">
+                    Notify when status.claude.com reports an incident.
+                  </div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-notify-incidents" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="section-subheading">Logs</div>
+
+            <div class="log-row">
+              <div>
+                <div class="log-label">Application log</div>
+                <div class="log-meta">
+                  ~/AppData/Roaming/burnclaw/app.log
+                </div>
+              </div>
+              <button class="action-btn subtle js-open-logs">Open folder</button>
+            </div>
+
+            <div class="log-row">
+              <div>
+                <div class="log-label">Hook events log</div>
+                <div class="log-meta">
+                  ~/AppData/Roaming/burnclaw/hooks.log
+                </div>
+              </div>
+              <button class="action-btn subtle js-open-logs">Open folder</button>
+            </div>
+
+            <div class="log-row">
+              <div>
+                <div class="log-label">Reset all settings</div>
+                <div class="log-meta">
+                  Clears setup state, returns to first-run wizard.
+                </div>
+              </div>
+              <button class="action-btn danger" id="btn-reset-settings">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <!-- ============ ABOUT ============ -->
+          <div class="section-content" data-section-content="about">
+            <div class="about-hero">
+              <div class="about-logo">
+                <img src="/mascot.png" alt="BurnClaw" />
+              </div>
+              <div class="about-name">BurnClaw</div>
+              <div class="about-version">version 0.1.0</div>
+            </div>
+
+            <div class="about-row">
+              <span class="key">Author</span>
+              <span class="val">Alex Santino (RIQO)</span>
+            </div>
+            <div class="about-row">
+              <span class="key">License</span>
+              <span class="val">Personal use</span>
+            </div>
+            <div class="about-row">
+              <span class="key">Source</span>
+              <span class="val">
+                <a id="link-source" href="#">github.com/asantinos/burnclaw</a>
+              </span>
+            </div>
+            <div class="about-row">
+              <span class="key">Built with</span>
+              <span class="val">Tauri 2 · Rust · TypeScript</span>
+            </div>
+
+            <div class="about-actions">
+              <button class="action-btn subtle" id="btn-report-issue">
+                Report an issue
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

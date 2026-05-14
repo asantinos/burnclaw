@@ -1,7 +1,10 @@
 use axum::{extract::State, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+
+use crate::logging;
+use crate::SharedSettings;
 
 /// Evento entrante. Acepta tanto el formato nativo de los hooks de Claude Code
 /// (`hook_event_name`, `tool_input`, `prompt`) como el formato simplificado de
@@ -65,19 +68,41 @@ async fn handle_event(
 ) -> Json<Value> {
     let event = normalize(raw);
 
+    // Log del evento a hooks.log.
+    logging::hook(&format!(
+        "{}{}{}",
+        event.event_type,
+        event
+            .tool_name
+            .as_deref()
+            .map(|t| format!(" · {}", t))
+            .unwrap_or_default(),
+        event
+            .tool_target
+            .as_deref()
+            .map(|t| format!(" — {}", t))
+            .unwrap_or_default(),
+    ));
+
     // Emite a AMBAS ventanas (emit global).
     let _ = state.app.emit("claude-event", &event);
 
-    // Notificaciones nativas solo en eventos relevantes.
-    trigger_notification(&event);
+    // Notificaciones nativas solo en eventos relevantes (y si el toggle está on).
+    trigger_notification(&state, &event);
 
     Json(json!({ "ok": true }))
 }
 
-fn trigger_notification(event: &ClaudeEvent) {
+fn trigger_notification(state: &HookState, event: &ClaudeEvent) {
     use notify_rust::Notification;
+
+    let cfg = match state.app.try_state::<SharedSettings>() {
+        Some(s) => s.lock().unwrap().clone(),
+        None => return,
+    };
+
     match event.event_type.as_str() {
-        "Notification" => {
+        "Notification" if cfg.notify_claude_needs_you => {
             Notification::new()
                 .summary("Claude needs you")
                 .body(
@@ -89,7 +114,7 @@ fn trigger_notification(event: &ClaudeEvent) {
                 .show()
                 .ok();
         }
-        "Stop" => {
+        "Stop" if cfg.notify_claude_finished => {
             let project = event
                 .cwd
                 .as_deref()
@@ -115,13 +140,13 @@ pub async fn start_server(state: HookState) {
     let listener = match tokio::net::TcpListener::bind("127.0.0.1:9876").await {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("ERR: hook server failed to bind 127.0.0.1:9876: {}", e);
+            logging::app(&format!("hook server failed to bind 127.0.0.1:9876: {}", e));
             return;
         }
     };
 
-    println!("Hook server listening on http://127.0.0.1:9876");
+    logging::app("hook server listening on http://127.0.0.1:9876");
     if let Err(e) = axum::serve(listener, router).await {
-        eprintln!("ERR: hook server stopped: {}", e);
+        logging::app(&format!("hook server stopped: {}", e));
     }
 }

@@ -40,11 +40,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 }
             }
             "settings" => {
-                // Reabre el wizard de setup (sigue vivo, oculto tras completarlo).
-                if let Some(win) = app.get_webview_window("setup") {
+                // Abre la ventana de Settings (vive oculta, no se destruye).
+                if let Some(win) = app.get_webview_window("settings") {
                     let _ = win.show();
                     let _ = win.set_focus();
-                    let _ = app.emit_to("setup", "setup-reopened", ());
+                    let _ = app.emit_to("settings", "settings-reopened", ());
                 }
             }
             "quit" => {

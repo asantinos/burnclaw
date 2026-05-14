@@ -2,13 +2,14 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, State};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State};
 
 use crate::anthropic::UsageSnapshot;
 use crate::credentials;
+use crate::logging;
 use crate::setup_state::SetupState;
 use crate::status::StatusSnapshot;
-use crate::{ForceRefresh, SharedStatus, SharedUsage};
+use crate::{ForceRefresh, SharedSettings, SharedStatus, SharedUsage};
 
 /// Marca distintiva de los hooks de BurnClaw dentro de settings.json.
 const HOOK_MARKER: &str = "127.0.0.1:9876";
@@ -312,19 +313,24 @@ pub fn set_auto_start(enabled: bool) -> Result<(), String> {
 }
 
 /// Cierra el wizard: aplica auto-start, guarda SetupState, cierra la ventana
-/// de setup y arranca el modo normal de la app.
+/// de setup y arranca el modo normal de la app. El wizard solo controla 3
+/// campos; el resto de ajustes conservan sus valores (defaults en primer
+/// arranque), y se editan luego desde la ventana de Settings.
 #[tauri::command]
 pub fn complete_setup(
     auto_start: bool,
     polling_interval_secs: u64,
     app: AppHandle,
+    shared: State<'_, SharedSettings>,
 ) -> Result<(), String> {
     set_auto_start(auto_start)?;
 
-    let setup = SetupState {
-        completed: true,
-        auto_start,
-        polling_interval_secs,
+    let setup = {
+        let mut s = shared.lock().unwrap();
+        s.completed = true;
+        s.auto_start = auto_start;
+        s.polling_interval_secs = polling_interval_secs;
+        s.clone()
     };
     setup.save().map_err(|e| e.to_string())?;
 
@@ -343,4 +349,82 @@ pub fn complete_setup(
 #[tauri::command]
 pub fn exit_app(app: AppHandle) {
     app.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Settings window — leer/guardar/reset ajustes y abrir logs
+// ---------------------------------------------------------------------------
+
+/// Devuelve los ajustes vivos actuales (los que ve la ventana de Settings al
+/// abrirse).
+#[tauri::command]
+pub fn get_settings(shared: State<'_, SharedSettings>) -> SetupState {
+    shared.lock().unwrap().clone()
+}
+
+/// Guarda los ajustes: persiste a disco, actualiza el estado compartido (que
+/// el poller y notifications releen en vivo), aplica auto-start y avisa a la
+/// ventana principal para que aplique los toggles visuales. `completed` se
+/// conserva del estado actual — la ventana de Settings no lo toca.
+#[tauri::command]
+pub fn save_settings(
+    mut new_settings: SetupState,
+    app: AppHandle,
+    shared: State<'_, SharedSettings>,
+) -> Result<(), String> {
+    new_settings.completed = shared.lock().unwrap().completed;
+
+    new_settings.save().map_err(|e| e.to_string())?;
+    set_auto_start(new_settings.auto_start)?;
+
+    *shared.lock().unwrap() = new_settings.clone();
+
+    // La ventana principal aplica orange_border / console_banner al vuelo.
+    let _ = app.emit_to("main", "settings-changed", new_settings);
+    logging::app("settings saved");
+    Ok(())
+}
+
+/// Restablece todo: borra setup.json, vuelve el estado compartido a defaults y
+/// reabre el wizard (ocultando settings y la ventana principal).
+#[tauri::command]
+pub fn reset_settings(app: AppHandle, shared: State<'_, SharedSettings>) -> Result<(), String> {
+    if let Ok(path) = SetupState::path() {
+        let _ = std::fs::remove_file(path);
+    }
+    *shared.lock().unwrap() = SetupState::defaults();
+
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.hide();
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+    if let Some(w) = app.get_webview_window("setup") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    logging::app("settings reset — reopening wizard");
+    Ok(())
+}
+
+/// Abre la carpeta de datos de BurnClaw (donde viven app.log, hooks.log y
+/// setup.json) en el Explorador de Windows.
+#[tauri::command]
+pub fn open_logs_folder() -> Result<(), String> {
+    let dir = logging::dir().ok_or("logs folder unavailable")?;
+    Command::new("explorer")
+        .arg(dir)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Oculta la ventana de Settings (botón X). Se oculta, no se cierra, para
+/// poder reabrirla desde el menú del tray sin recrearla.
+#[tauri::command]
+pub fn close_settings_window(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.hide();
+    }
 }

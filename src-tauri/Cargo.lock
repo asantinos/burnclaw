@@ -394,6 +394,7 @@ dependencies = [
  "tauri-plugin-store",
  "thiserror 1.0.69",
  "tokio",
+ "winreg",
 ]
 
 [[package]]

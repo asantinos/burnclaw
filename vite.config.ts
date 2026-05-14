@@ -10,6 +10,15 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // multipage: la ventana principal (index.html) y el setup wizard (setup.html)
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        setup: "setup.html",
+      },
+    },
+  },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,

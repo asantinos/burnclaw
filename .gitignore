@@ -23,6 +23,7 @@ dist-ssr
 # Docs de trabajo interno / artefactos de diseño (no para el repo público)
 CLAUDE.md
 burnclaw-claude-states-mockup-v2.html
+burnclaw-setup-wizard-anthropic.html
 
 # Editor directories and files
 .vscode/*

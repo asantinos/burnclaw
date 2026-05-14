@@ -7,7 +7,6 @@ use crate::status;
 use crate::tray;
 use crate::{ForceRefresh, SharedNotificationState, SharedStatus, SharedUsage};
 
-const POLL_INTERVAL_SECS: u64 = 60;
 const STATUS_INTERVAL_SECS: u64 = 300;
 
 pub async fn run(
@@ -16,6 +15,7 @@ pub async fn run(
     notif_state: SharedNotificationState,
     force_refresh: ForceRefresh,
     token: String,
+    interval_secs: u64,
 ) {
     loop {
         match anthropic::fetch_usage(&token).await {
@@ -43,7 +43,7 @@ pub async fn run(
         }
 
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)) => {}
+            _ = tokio::time::sleep(Duration::from_secs(interval_secs)) => {}
             _ = force_refresh.notified() => {}
         }
     }

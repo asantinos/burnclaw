@@ -62,8 +62,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "Alex Santino",
-    "copyright": "Copyright © 2026 Alex Santino",
+    "publisher": "Alex Santos",
+    "copyright": "Copyright © 2026 Alex Santos",
     "category": "DeveloperTool",
     "shortDescription": "Watch your Claude usage burn down in real time",
     "longDescription": "BurnClaw is a Windows system tray widget for tracking your Claude Pro/Max usage in real time. It shows the rolling 5-hour session and 7-day weekly limits, reacts to Claude Code activity, and notifies on critical thresholds. Built with Tauri 2 + Rust.",

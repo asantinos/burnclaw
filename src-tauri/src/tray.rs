@@ -1,0 +1,170 @@
+use chrono::{DateTime, Utc};
+use tauri::{
+    image::Image,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, PhysicalPosition,
+};
+
+use crate::anthropic::UsageSnapshot;
+use crate::{ForceRefresh, LastWindowPos};
+
+const TRAY_ID: &str = "burnclaw-tray";
+const WINDOW_LABEL: &str = "main";
+const SCREEN_MARGIN: i32 = 8;
+const TASKBAR_EST: i32 = 48;
+/// Padding del body de la ventana: el contenido visible (shell) está embebido
+/// SHELL_MARGIN px dentro de la ventana para dejar sitio a la sombra.
+const SHELL_MARGIN: i32 = 18;
+
+const IDLE_PNG: &[u8] = include_bytes!("../icons/tray/idle.png");
+const OK_PNG: &[u8] = include_bytes!("../icons/tray/ok.png");
+const WARN_PNG: &[u8] = include_bytes!("../icons/tray/warn.png");
+const ORANGE_PNG: &[u8] = include_bytes!("../icons/tray/orange.png");
+const DANGER_PNG: &[u8] = include_bytes!("../icons/tray/danger.png");
+
+pub fn setup(app: &AppHandle) -> tauri::Result<()> {
+    let refresh_item = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&refresh_item, &quit_item])?;
+
+    let idle_icon = Image::from_bytes(IDLE_PNG)?;
+
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(idle_icon)
+        .tooltip("BurnClaw — loading…")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "refresh" => {
+                if let Some(notify) = app.try_state::<ForceRefresh>() {
+                    notify.notify_one();
+                }
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                toggle_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+/// Click izquierdo en el tray: alterna la visibilidad de la única ventana.
+/// El morph pill <-> widget es interno (CSS), aquí solo se muestra/oculta.
+/// Se recuerda la posición al ocultar y se restaura al volver a mostrar.
+fn toggle_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        return;
+    };
+    let last_pos = app.try_state::<LastWindowPos>();
+
+    if window.is_visible().unwrap_or(false) {
+        // Guarda la posición actual antes de ocultar.
+        if let (Ok(pos), Some(last)) = (window.outer_position(), &last_pos) {
+            *last.lock().unwrap() = Some((pos.x, pos.y));
+        }
+        let _ = window.hide();
+    } else {
+        // Restaura la última posición; la primera vez, posiciona junto al tray.
+        let restored = last_pos.and_then(|s| *s.lock().unwrap());
+        if let Some((x, y)) = restored {
+            let _ = window.set_position(PhysicalPosition::new(x, y));
+        } else {
+            position_near_taskbar(&window);
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
+        // Al abrir desde el tray, el frontend vuelve al estado colapsado (pill).
+        let _ = app.emit_to(WINDOW_LABEL, "window-shown", ());
+    }
+}
+
+fn position_near_taskbar(window: &tauri::WebviewWindow) {
+    let win_size = match window.outer_size() {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    if let Ok(Some(monitor)) = window.primary_monitor() {
+        let mpos = monitor.position();
+        let msize = monitor.size();
+        // El shell visible está embebido SHELL_MARGIN px dentro de la ventana;
+        // se compensa para que quede SCREEN_MARGIN px del borde real.
+        let x = mpos.x + msize.width as i32 - win_size.width as i32 - SCREEN_MARGIN
+            + SHELL_MARGIN;
+        let y = mpos.y + msize.height as i32
+            - win_size.height as i32
+            - TASKBAR_EST
+            - SCREEN_MARGIN
+            + SHELL_MARGIN;
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
+}
+
+pub fn update_tray_dynamic(
+    app: &AppHandle,
+    snap: &UsageSnapshot,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let tray = app.tray_by_id(TRAY_ID).ok_or("tray icon not found")?;
+
+    let max_pct = snap.session_5h_pct.max(snap.weekly_pct);
+    let image = Image::from_bytes(icon_bytes_for_pct(max_pct))?;
+    tray.set_icon(Some(image))?;
+
+    let next_reset = if snap.session_5h_reset_at <= snap.weekly_reset_at {
+        snap.session_5h_reset_at
+    } else {
+        snap.weekly_reset_at
+    };
+    let tooltip = format!(
+        "Session {}% · Weekly {}%\nResets in {}",
+        snap.session_5h_pct.round() as i64,
+        snap.weekly_pct.round() as i64,
+        format_countdown(&next_reset),
+    );
+    tray.set_tooltip(Some(tooltip))?;
+
+    Ok(())
+}
+
+pub fn format_countdown(reset: &DateTime<Utc>) -> String {
+    let secs = reset
+        .signed_duration_since(Utc::now())
+        .num_seconds()
+        .max(0);
+    let d = secs / 86400;
+    let h = (secs % 86400) / 3600;
+    let m = (secs % 3600) / 60;
+    if d > 0 {
+        format!("{}d {}h", d, h)
+    } else if h > 0 {
+        format!("{}h {}m", h, m)
+    } else if m > 0 {
+        format!("{}m", m)
+    } else {
+        "<1m".to_string()
+    }
+}
+
+fn icon_bytes_for_pct(pct: f64) -> &'static [u8] {
+    if pct >= 95.0 {
+        DANGER_PNG
+    } else if pct >= 80.0 {
+        ORANGE_PNG
+    } else if pct >= 50.0 {
+        WARN_PNG
+    } else {
+        OK_PNG
+    }
+}

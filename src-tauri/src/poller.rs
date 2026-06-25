@@ -2,11 +2,15 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 use crate::anthropic;
+use crate::codex;
 use crate::logging;
 use crate::notifications;
 use crate::status;
 use crate::tray;
-use crate::{ForceRefresh, SharedNotificationState, SharedSettings, SharedStatus, SharedUsage};
+use crate::{
+    ForceRefresh, SharedCodexUsage, SharedNotificationState, SharedSettings, SharedStatus,
+    SharedUsage,
+};
 
 const STATUS_INTERVAL_SECS: u64 = 300;
 /// Suelo del intervalo de polling, por si el ajuste guardado es absurdamente bajo.
@@ -31,7 +35,7 @@ pub async fn run(
                 if let Err(e) = app.emit("usage-updated", snap.clone()) {
                     logging::app(&format!("emit usage-updated failed: {}", e));
                 }
-                if let Err(e) = tray::update_tray_dynamic(&app, &snap) {
+                if let Err(e) = tray::update_tray(&app) {
                     logging::app(&format!("tray update failed: {}", e));
                 }
                 {
@@ -58,6 +62,41 @@ pub async fn run(
             _ = tokio::time::sleep(Duration::from_secs(interval)) => {}
             _ = force_refresh.notified() => {}
         }
+    }
+}
+
+/// Poller de uso de Codex. Espejo de `run` pero contra el endpoint de Codex,
+/// que es de solo lectura (no consume cuota). Sin force-refresh ni
+/// notificaciones por ahora (Fase 1); cachea el snapshot y lo emite al
+/// frontend. Relee el intervalo de Settings cada vuelta, igual que el de Claude.
+pub async fn run_codex(app: AppHandle, state: SharedCodexUsage, settings: SharedSettings) {
+    loop {
+        match codex::fetch_usage().await {
+            Ok(snap) => {
+                {
+                    let mut guard = state.lock().unwrap();
+                    *guard = Some(snap.clone());
+                }
+                if let Err(e) = app.emit("codex-usage-updated", snap) {
+                    logging::app(&format!("emit codex-usage-updated failed: {}", e));
+                }
+                if let Err(e) = tray::update_tray(&app) {
+                    logging::app(&format!("tray update failed (codex): {}", e));
+                }
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                logging::app(&format!("codex fetch_usage failed: {}", msg));
+                let _ = app.emit("codex-usage-error", msg);
+            }
+        }
+
+        let interval = settings
+            .lock()
+            .unwrap()
+            .polling_interval_secs
+            .max(MIN_INTERVAL_SECS);
+        tokio::time::sleep(Duration::from_secs(interval)).await;
     }
 }
 

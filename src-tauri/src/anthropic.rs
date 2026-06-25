@@ -24,6 +24,8 @@ pub struct UsageSnapshot {
     pub representative_claim: String,
     pub overage_status: String,
     pub overage_disabled_reason: Option<String>,
+    /// Plan de la suscripción ("max", "pro", …), de `.credentials.json`.
+    pub plan: String,
 }
 
 #[derive(Debug, Error)]
@@ -88,12 +90,13 @@ pub async fn fetch_usage() -> Result<UsageSnapshot, AnthropicError> {
         }
     }
 
-    match make_request(&oauth.access_token).await {
+    let plan = oauth.subscription_type.clone();
+    match make_request(&oauth.access_token, &plan).await {
         Err(AnthropicError::Unauthorized) => {
             // El token caducó pese a la comprobación previa: refrescar y
             // reintentar una sola vez.
             match credentials::refresh_token(&oauth).await {
-                Ok(refreshed) => make_request(&refreshed.access_token).await,
+                Ok(refreshed) => make_request(&refreshed.access_token, &plan).await,
                 Err(e) => {
                     logging::app(&format!("token refresh failed after 401: {}", e));
                     Err(AnthropicError::TokenExpired)
@@ -104,7 +107,7 @@ pub async fn fetch_usage() -> Result<UsageSnapshot, AnthropicError> {
     }
 }
 
-async fn make_request(access_token: &str) -> Result<UsageSnapshot, AnthropicError> {
+async fn make_request(access_token: &str, plan: &str) -> Result<UsageSnapshot, AnthropicError> {
     let client = reqwest::Client::new();
     let body = RequestBody {
         model: MODEL,
@@ -203,6 +206,7 @@ async fn make_request(access_token: &str) -> Result<UsageSnapshot, AnthropicErro
         representative_claim,
         overage_status,
         overage_disabled_reason,
+        plan: plan.to_string(),
     })
 }
 

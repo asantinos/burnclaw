@@ -45,11 +45,13 @@ body {
 }
 
 /* La ventana es mayor que el contenido; este padding deja sitio a la sombra.
-   El shell se ancla ARRIBA-CENTRO: crece hacia abajo y se mantiene centrado. */
+   El shell se ancla ARRIBA-CENTRO: crece hacia abajo y se mantiene centrado.
+   Columna: debajo del shell puede aparecer el panel de actividad (#pill-notif). */
 body {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   padding: 18px;
 }
 
@@ -162,70 +164,162 @@ body {
   background: var(--gray);
 }
 
-/* ---------- Pill: progress rings ---------- */
+/* ---------- Pill: doble ring concéntrico (5h exterior + semanal interior) --- */
 
-.ring {
+.dual-ring {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   cursor: pointer;
 }
-.ring svg {
+/* Solo el svg directo se rota (si no, también rotaría el del badge). */
+.dual-ring > svg {
   transform: rotate(-90deg);
   width: 100%;
   height: 100%;
 }
-.ring .track {
+.dual-ring .track {
   fill: none;
   stroke: rgba(255, 255, 255, 0.08);
   stroke-width: 3;
 }
-.ring .progress {
+.dual-ring .progress {
   fill: none;
   stroke-width: 3;
   stroke-linecap: round;
   stroke: var(--ok);
   transition: stroke-dashoffset 600ms var(--morph-ease), stroke 300ms ease;
 }
-.ring .progress.ok {
+.dual-ring .progress.ok {
   stroke: var(--ok);
 }
-.ring .progress.warn {
+.dual-ring .progress.warn {
   stroke: var(--warn);
 }
-.ring .progress.orange {
+.dual-ring .progress.orange {
   stroke: var(--orange);
 }
-.ring .progress.danger {
+.dual-ring .progress.danger {
   stroke: var(--danger);
 }
-.ring .label {
+.dual-ring.flash .progress {
+  filter: drop-shadow(0 0 6px currentColor);
+  transition: filter 500ms ease;
+}
+
+/* Icono de marca centrado dentro de los aros. */
+.dual-icon {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Mismo tono que el icono del widget (--text-primary), para que Codex se vea
+     igual en pill y en expandido. */
+  color: var(--text-primary);
+  pointer-events: none;
+}
+.dual-icon svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+}
+/* El icono de Claude tiene más aire/trazos finos: a igual px se ve más
+   pequeño que el de Codex, así que se compensa subiéndolo solo a él. */
+.pill-provider[data-provider="claude"] .dual-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ---------- Pill: grupos por proveedor ---------- */
+
+.pill-providers {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.pill-provider {
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+/* ---------- Widget: grupos por proveedor ---------- */
+
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.provider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Separador sutil entre proveedores. */
+.provider-group + .provider-group {
+  border-top: 1px solid var(--border);
+  margin-top: 13px;
+  padding-top: 13px;
+}
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.provider-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+.provider-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+/* El icono de Claude tiene más aire: se agranda un punto para igualar peso. */
+.provider-group[data-provider="claude"] .provider-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.provider-name {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
+}
+.provider-plan {
   font-family: var(--font-mono);
   font-size: 9px;
-  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.provider-plan:empty {
+  display: none;
+}
+/* Mini-pill (botón) — mismo fondo que el botón de refresh. Padding mínimo para
+   que se lea como botón sin cambiar el tamaño del texto. */
+.provider-details {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  user-select: auto;
+  background: var(--surface);
+  padding: 3px 8px;
+  border-radius: 999px;
+  transition: color 150ms ease, background 150ms ease;
+}
+.provider-details:hover {
   color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-.ring .label.warn {
-  color: var(--warn);
-}
-.ring .label.orange {
-  color: var(--orange);
-}
-.ring .label.danger {
-  color: var(--danger);
-}
-.ring.flash .progress {
-  filter: drop-shadow(0 0 6px currentColor);
-  transition: filter 500ms ease;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ---------- Widget: header ---------- */
@@ -274,6 +368,11 @@ body {
   font-weight: 500;
   color: var(--text-secondary);
   line-height: 1;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.status-indicator:hover {
+  color: var(--text-primary);
 }
 
 .status-indicator span:last-child {
@@ -459,12 +558,12 @@ body {
 }
 
 .refresh-btn {
-  background: transparent;
+  background: var(--surface);
   border: none;
-  color: var(--text-tertiary);
-  padding: 2px;
+  color: var(--text-secondary);
+  padding: 4px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -473,7 +572,7 @@ body {
 }
 .refresh-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.1);
 }
 .refresh-btn svg {
   display: block;
@@ -555,45 +654,107 @@ body {
   pointer-events: none;
 }
 
-/* ---------- Claude Code activity: borde del shell (eje separado) ---------- */
-/* No toca status dot ni uso. */
+/* ---------- Activity: panel-notificación que se desliza bajo la pill ------- */
+/* Eje separado del uso y del status. Color por proveedor. */
 
-body.cc-active .shell {
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-    0 0 0 1px var(--claude-orange-glow), 0 2px 8px rgba(0, 0, 0, 0.22);
+.pill-notif {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 264px;
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(12px) saturate(1.3);
+  /* Sin sombra; solo un hairline interior para definir el borde. */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  /* estado oculto */
+  max-height: 0;
+  opacity: 0;
+  padding: 0 12px;
+  margin-top: 0;
+  transform: translateY(-6px);
+  transition: max-height 240ms var(--morph-ease), opacity 180ms ease,
+    transform 240ms var(--morph-ease), margin-top 240ms var(--morph-ease),
+    padding 240ms var(--morph-ease);
+}
+.pill-notif.show {
+  max-height: 26px;
+  opacity: 1;
+  padding: 3px 11px;
+  margin-top: 7px;
+  transform: none;
+  pointer-events: auto;
+}
+/* Fondo translúcido por proveedor (Claude naranja / Codex slate). */
+.pill-notif.claude {
+  background: rgba(255, 107, 53, 0.82);
+}
+.pill-notif.codex {
+  background: rgba(91, 107, 122, 0.82);
 }
 
-body.cc-working .shell {
-  animation: workingBorderPulse 1.6s ease-in-out infinite;
+.pill-notif-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
-
-body.cc-awaiting .shell {
-  animation: awaitingBorderBlink 700ms ease-in-out infinite;
+.pill-notif-icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
 }
-
-@keyframes workingBorderPulse {
+/* Forzar blanco sobre el fondo de color (ignora el fill embebido del icono). */
+.pill-notif-icon svg,
+.pill-notif-icon svg path {
+  fill: #fff;
+}
+.pill-notif-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill-notif-close {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, background 150ms ease;
+}
+.pill-notif:hover .pill-notif-close {
+  opacity: 1;
+}
+.pill-notif-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.pill-notif-close svg {
+  display: block;
+}
+/* "needs you" pide más atención: respira suave. */
+.pill-notif.awaiting.show {
+  animation: notifPulse 1.6s ease-in-out infinite;
+}
+@keyframes notifPulse {
   0%, 100% {
-    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-      0 0 0 1px var(--claude-orange-bright),
-      0 0 10px rgba(249, 115, 22, 0.25), 0 2px 8px rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   }
   50% {
-    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-      0 0 0 1px var(--claude-orange-bright),
-      0 0 18px rgba(249, 115, 22, 0.6), 0 2px 8px rgba(0, 0, 0, 0.22);
-  }
-}
-
-@keyframes awaitingBorderBlink {
-  0%, 100% {
-    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-      0 0 0 1.5px var(--claude-orange-bright),
-      0 0 10px rgba(249, 115, 22, 0.3), 0 2px 8px rgba(0, 0, 0, 0.22);
-  }
-  50% {
-    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-      0 0 0 2px var(--claude-orange-bright),
-      0 0 24px rgba(249, 115, 22, 0.85), 0 2px 8px rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
   }
 }
 

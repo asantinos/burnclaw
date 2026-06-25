@@ -1,6 +1,6 @@
 [package]
 name = "burnclaw"
-version = "0.1.0"
+version = "1.0.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -31,6 +31,9 @@ notify-rust = "4"
 dirs = "5"
 thiserror = "1"
 winreg = "0.55"
+# Decodificar el payload del id_token (JWT) de Codex para sacar el
+# chatgpt_account_id cuando no viene como campo suelto en auth.json.
+base64 = "0.22"
 
 # Windows-only: AppUserModelID para que las notificaciones salgan con el
 # nombre/icono de BurnClaw. Versión alineada con la que ya resuelve Tauri.

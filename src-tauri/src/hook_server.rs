@@ -20,6 +20,8 @@ pub struct HookEvent {
     pub message: Option<String>,
     pub prompt: Option<String>,
     pub session_id: Option<String>,
+    /// "claude" (por defecto) o "codex" (lo envía el forwarder del notify).
+    pub provider: Option<String>,
 }
 
 /// Evento normalizado que se emite al frontend (ambas ventanas).
@@ -31,6 +33,7 @@ pub struct ClaudeEvent {
     pub tool_target: Option<String>,
     pub message: Option<String>,
     pub session_id: Option<String>,
+    pub provider: Option<String>,
 }
 
 #[derive(Clone)]
@@ -59,6 +62,7 @@ fn normalize(raw: HookEvent) -> ClaudeEvent {
         tool_target,
         message,
         session_id: raw.session_id,
+        provider: raw.provider,
     }
 }
 
@@ -101,15 +105,20 @@ fn trigger_notification(state: &HookState, event: &ClaudeEvent) {
         None => return,
     };
 
+    let name = match event.provider.as_deref() {
+        Some("codex") => "Codex",
+        _ => "Claude",
+    };
+
     match event.event_type.as_str() {
         "Notification" if cfg.notify_claude_needs_you => {
             Notification::new()
-                .summary("Claude needs you")
+                .summary(&format!("{} needs you", name))
                 .body(
                     event
                         .message
                         .as_deref()
-                        .unwrap_or("Claude is waiting for your input"),
+                        .unwrap_or("Waiting for your input"),
                 )
                 .app_id(crate::notifications::AUMID)
                 .show()
@@ -123,7 +132,7 @@ fn trigger_notification(state: &HookState, event: &ClaudeEvent) {
                 .filter(|s| !s.is_empty())
                 .unwrap_or("session");
             Notification::new()
-                .summary("Claude finished")
+                .summary(&format!("{} finished", name))
                 .body(&format!("Response complete · {}", project))
                 .app_id(crate::notifications::AUMID)
                 .show()

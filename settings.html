@@ -16,23 +16,46 @@
           <span class="sidebar-brand-name">BurnClaw</span>
         </div>
 
-        <div class="sidebar-heading">General</div>
+        <div class="sidebar-heading">Setup</div>
         <div class="nav-items">
           <button class="nav-item active" data-section="account">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="8" cy="5.5" r="2.5" />
               <path d="M3 13.5c0-2.5 2-4 5-4s5 1.5 5 4" />
             </svg>
-            Account
+            Providers
           </button>
-          <button class="nav-item" data-section="hooks">
+          <button class="nav-item" data-section="integration">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6.5 9.5l3-3" />
+              <path d="M8 5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1" />
+              <path d="M8 11l-1 1a2.5 2.5 0 0 1-3.5-3.5l1-1" />
+            </svg>
+            Integration
+          </button>
+        </div>
+
+        <div class="sidebar-heading">Activity &amp; alerts</div>
+        <div class="nav-items">
+          <button class="nav-item" data-section="activity">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M5 2v3h6V2" />
               <path d="M4 5h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4V5z" />
               <path d="M8 12v2" />
             </svg>
-            Activity hooks
+            Activity
           </button>
+          <button class="nav-item" data-section="advanced">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2a3 3 0 0 0-3 3v2.5L3.5 10h9L11 7.5V5a3 3 0 0 0-3-3z" />
+              <path d="M6.5 12.5a1.5 1.5 0 0 0 3 0" />
+            </svg>
+            Notifications
+          </button>
+        </div>
+
+        <div class="sidebar-heading">App</div>
+        <div class="nav-items">
           <button class="nav-item" data-section="behavior">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="3" width="12" height="10" rx="1.5" />
@@ -41,16 +64,6 @@
               <circle cx="5.5" cy="4.5" r="0.3" fill="currentColor" />
             </svg>
             Behavior
-          </button>
-        </div>
-
-        <div class="sidebar-heading">More</div>
-        <div class="nav-items">
-          <button class="nav-item" data-section="advanced">
-            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 4h12M2 8h12M2 12h12" />
-            </svg>
-            Advanced
           </button>
           <button class="nav-item" data-section="about">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -61,50 +74,80 @@
           </button>
         </div>
 
-        <div class="sidebar-footer">v0.1.0</div>
+        <div class="sidebar-footer">v1.0.0</div>
       </aside>
 
       <div class="panel">
         <div class="panel-body">
           <!-- ============ ACCOUNT ============ -->
           <div class="section-content active" data-section-content="account">
-            <h2 class="section-title">Account</h2>
+            <h2 class="section-title">Providers</h2>
             <p class="section-desc">
-              Connection to your local Claude Code installation. Nothing is
-              sent to external servers.
+              Connections to your local Claude Code and Codex CLIs. Read
+              locally — nothing is sent to external servers.
             </p>
 
-            <div class="section-subheading">Claude Code</div>
-            <div id="cc-status">
-              <div class="status-line">
-                <div class="status-line-header">
-                  <span class="status-dot checking"></span>
-                  <div class="status-text">Checking Claude Code…</div>
+            <div class="section-subheading">Connections</div>
+            <div class="provider-row">
+              <span class="provider-mark" data-provider="claude"></span>
+              <div id="cc-status">
+                <div class="status-line">
+                  <div class="status-line-header">
+                    <span class="status-dot checking"></span>
+                    <div class="status-text">Checking Claude Code…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="provider-row">
+              <span class="provider-mark" data-provider="codex"></span>
+              <div id="codex-status">
+                <div class="status-line">
+                  <div class="status-line-header">
+                    <span class="status-dot checking"></span>
+                    <div class="status-text">Checking Codex…</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="section-subheading">Credentials file</div>
-            <div id="creds-file-status">
-              <div class="status-line">
-                <div class="status-line-header">
-                  <span class="status-dot"></span>
-                  <div class="status-text">Checking…</div>
+            <div class="section-subheading">Files</div>
+            <div class="section-note">
+              BurnClaw reads these files only — never modifies them.
+            </div>
+            <div class="provider-row">
+              <span class="provider-mark" data-provider="claude"></span>
+              <div id="creds-file-status">
+                <div class="status-line">
+                  <div class="status-line-header">
+                    <span class="status-dot"></span>
+                    <div class="status-text">Checking…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="provider-row">
+              <span class="provider-mark" data-provider="codex"></span>
+              <div id="codex-file-status">
+                <div class="status-line">
+                  <div class="status-line-header">
+                    <span class="status-dot"></span>
+                    <div class="status-text">Checking…</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- ============ ACTIVITY HOOKS ============ -->
-          <div class="section-content" data-section-content="hooks">
-            <h2 class="section-title">Activity hooks</h2>
+          <!-- ============ INTEGRATION ============ -->
+          <div class="section-content" data-section-content="integration">
+            <h2 class="section-title">Integration</h2>
             <p class="section-desc">
-              When enabled, Claude Code pings BurnClaw on lifecycle events —
-              session start, tool calls, input requests. BurnClaw reacts
-              visually (orange border) and with notifications.
+              How activity reaches BurnClaw — Claude Code via hooks, Codex via
+              its <code>notify</code> command. Read/written locally only.
             </p>
 
-            <div class="section-subheading">Status</div>
+            <div class="section-subheading">Claude Code</div>
             <div id="hooks-status">
               <div class="status-line">
                 <div class="status-line-header">
@@ -113,8 +156,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="section-subheading">Settings file</div>
             <div id="hooks-backup">
               <div class="status-line">
                 <div class="status-line-header">
@@ -124,21 +165,128 @@
               </div>
             </div>
 
-            <div class="section-subheading">Visual feedback</div>
+            <div class="section-subheading">Codex</div>
+            <div id="codex-notify-status">
+              <div class="status-line">
+                <div class="status-line-header">
+                  <span class="status-dot checking"></span>
+                  <div class="status-text">Checking Codex…</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ============ ACTIVITY ============ -->
+          <div class="section-content" data-section-content="activity">
+            <h2 class="section-title">Activity</h2>
+            <p class="section-desc">
+              How BurnClaw shows activity on screen — the slide-down pill
+              panel and the widget console banner.
+            </p>
+
+            <div class="section-subheading">Pill notification</div>
 
             <div class="pref-row">
               <div class="pref-row-flex">
                 <div class="pref-left">
-                  <div class="pref-title">Orange border on activity</div>
+                  <div class="pref-title">Activity notification on the pill</div>
                   <div class="pref-desc">
-                    Tint pill/widget border while a Claude Code session is
-                    active.
+                    A panel slides down under the pill on activity.
                   </div>
                 </div>
                 <label class="toggle">
-                  <input type="checkbox" id="set-orange-border" />
+                  <input type="checkbox" id="set-pill-activity" />
                   <span class="toggle-slider"></span>
                 </label>
+              </div>
+            </div>
+
+            <div class="section-subheading" id="activity-show-for-heading">Show it for</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Claude</div>
+                  <div class="pref-desc">Claude Code activity (orange panel).</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-pill-claude" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">Codex</div>
+                  <div class="pref-desc">Codex activity (slate panel).</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-pill-codex" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="section-subheading" id="activity-when-heading">Slide it down when</div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">It needs your input</div>
+                  <div class="pref-desc">When Claude or Codex is waiting on you.</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-pill-awaiting" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">It finishes</div>
+                  <div class="pref-desc">When a response or task completes.</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-pill-finished" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-row-flex">
+                <div class="pref-left">
+                  <div class="pref-title">It's working</div>
+                  <div class="pref-desc">While running tools — more frequent, noisier.</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="set-pill-working" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="pref-row">
+              <div class="pref-left" style="margin-bottom: 12px">
+                <div class="pref-title">Auto-dismiss after</div>
+                <div class="pref-desc">
+                  How long the panel stays before sliding back up.
+                </div>
+              </div>
+              <div
+                class="pref-select"
+                id="set-pill-dismiss"
+                style="display: inline-flex"
+              >
+                <div class="pref-select-option" data-value="3">3s</div>
+                <div class="pref-select-option selected" data-value="6">6s</div>
+                <div class="pref-select-option" data-value="10">10s</div>
+                <div class="pref-select-option" data-value="0">Never</div>
               </div>
             </div>
 
@@ -223,9 +371,10 @@
 
           <!-- ============ ADVANCED ============ -->
           <div class="section-content" data-section-content="advanced">
-            <h2 class="section-title">Advanced</h2>
+            <h2 class="section-title">Notifications</h2>
             <p class="section-desc">
-              Customize thresholds, notifications, and access logs.
+              Native OS notifications and the thresholds that drive the tray
+              color and usage alerts.
             </p>
 
             <div class="section-subheading">Notification thresholds</div>
@@ -354,7 +503,46 @@
               </div>
             </div>
 
-            <div class="section-subheading">Logs</div>
+          </div>
+
+          <!-- ============ ABOUT ============ -->
+          <div class="section-content" data-section-content="about">
+            <div class="about-hero">
+              <div class="about-logo">
+                <img src="/mascot.png" alt="BurnClaw" />
+              </div>
+              <div class="about-name">BurnClaw</div>
+              <div class="about-version">version 1.0.0</div>
+            </div>
+
+            <div class="about-row">
+              <span class="key">Author</span>
+              <span class="val">
+                <a id="link-author" href="#">asantinos</a>
+              </span>
+            </div>
+            <div class="about-row">
+              <span class="key">License</span>
+              <span class="val">MIT</span>
+            </div>
+            <div class="about-row">
+              <span class="key">Source</span>
+              <span class="val">
+                <a id="link-source" href="#">github.com/asantinos/burnclaw</a>
+              </span>
+            </div>
+            <div class="about-row">
+              <span class="key">Built with</span>
+              <span class="val">Tauri 2 · Rust · TypeScript</span>
+            </div>
+
+            <div class="about-actions">
+              <button class="action-btn subtle" id="btn-report-issue">
+                Report an issue
+              </button>
+            </div>
+
+            <div class="section-subheading">System</div>
 
             <div class="log-row">
               <div>
@@ -385,44 +573,6 @@
               </div>
               <button class="action-btn danger" id="btn-reset-settings">
                 Reset
-              </button>
-            </div>
-          </div>
-
-          <!-- ============ ABOUT ============ -->
-          <div class="section-content" data-section-content="about">
-            <div class="about-hero">
-              <div class="about-logo">
-                <img src="/mascot.png" alt="BurnClaw" />
-              </div>
-              <div class="about-name">BurnClaw</div>
-              <div class="about-version">version 0.1.0</div>
-            </div>
-
-            <div class="about-row">
-              <span class="key">Author</span>
-              <span class="val">
-                <a id="link-author" href="#">asantinos</a>
-              </span>
-            </div>
-            <div class="about-row">
-              <span class="key">License</span>
-              <span class="val">MIT</span>
-            </div>
-            <div class="about-row">
-              <span class="key">Source</span>
-              <span class="val">
-                <a id="link-source" href="#">github.com/asantinos/burnclaw</a>
-              </span>
-            </div>
-            <div class="about-row">
-              <span class="key">Built with</span>
-              <span class="val">Tauri 2 · Rust · TypeScript</span>
-            </div>
-
-            <div class="about-actions">
-              <button class="action-btn subtle" id="btn-report-issue">
-                Report an issue
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { CLAUDE_ICON, CODEX_ICON } from "./icons";
 
 // ====================================================
 // TYPES & STATE
@@ -12,7 +13,13 @@ interface SetupState {
   auto_start: boolean;
   start_minimized: boolean;
   polling_interval_secs: number;
-  orange_border: boolean;
+  pill_activity_enabled: boolean;
+  pill_activity_claude: boolean;
+  pill_activity_codex: boolean;
+  pill_activity_working: boolean;
+  pill_activity_awaiting: boolean;
+  pill_activity_finished: boolean;
+  pill_activity_dismiss_secs: number;
   console_banner: boolean;
   warning_threshold: number;
   critical_threshold: number;
@@ -24,7 +31,12 @@ interface SetupState {
 
 type BoolKey =
   | "auto_start"
-  | "orange_border"
+  | "pill_activity_enabled"
+  | "pill_activity_claude"
+  | "pill_activity_codex"
+  | "pill_activity_working"
+  | "pill_activity_awaiting"
+  | "pill_activity_finished"
   | "console_banner"
   | "notify_usage_thresholds"
   | "notify_claude_finished"
@@ -36,7 +48,13 @@ const DEFAULTS: SetupState = {
   auto_start: true,
   start_minimized: true,
   polling_interval_secs: 60,
-  orange_border: true,
+  pill_activity_enabled: true,
+  pill_activity_claude: true,
+  pill_activity_codex: true,
+  pill_activity_working: false,
+  pill_activity_awaiting: true,
+  pill_activity_finished: true,
+  pill_activity_dismiss_secs: 6,
   console_banner: true,
   warning_threshold: 80,
   critical_threshold: 95,
@@ -49,6 +67,7 @@ const DEFAULTS: SetupState = {
 let state: SetupState = { ...DEFAULTS };
 let userPlan = "max";
 let hooksActionLoading = false;
+let codexNotifyLoading = false;
 
 const SOURCE_URL = "https://github.com/asantinos/burnclaw";
 const ISSUES_URL = "https://github.com/asantinos/burnclaw/issues";
@@ -109,9 +128,39 @@ function persist() {
 // ====================================================
 // CONTROL ↔ STATE
 // ====================================================
+// Las sub-opciones del panel de actividad dependen del master
+// `pill_activity_enabled`: si está off, se deshabilitan y atenúan.
+function updateActivityDependents() {
+  const enabled = state.pill_activity_enabled;
+  [
+    "set-pill-claude",
+    "set-pill-codex",
+    "set-pill-working",
+    "set-pill-awaiting",
+    "set-pill-finished",
+  ].forEach((id) => {
+    const c = input(id);
+    if (!c) return;
+    c.disabled = !enabled;
+    c.closest(".pref-row")?.classList.toggle("pref-disabled", !enabled);
+  });
+  document
+    .getElementById("set-pill-dismiss")
+    ?.closest(".pref-row")
+    ?.classList.toggle("pref-disabled", !enabled);
+  ["activity-show-for-heading", "activity-when-heading"].forEach((id) => {
+    document.getElementById(id)?.classList.toggle("pref-disabled", !enabled);
+  });
+}
+
 function populateControls() {
   const bools: [string, BoolKey][] = [
-    ["set-orange-border", "orange_border"],
+    ["set-pill-activity", "pill_activity_enabled"],
+    ["set-pill-claude", "pill_activity_claude"],
+    ["set-pill-codex", "pill_activity_codex"],
+    ["set-pill-working", "pill_activity_working"],
+    ["set-pill-awaiting", "pill_activity_awaiting"],
+    ["set-pill-finished", "pill_activity_finished"],
     ["set-console-banner", "console_banner"],
     ["set-auto-start", "auto_start"],
     ["set-notify-usage", "notify_usage_thresholds"],
@@ -123,6 +172,7 @@ function populateControls() {
     const c = input(id);
     if (c) c.checked = state[key];
   }
+  updateActivityDependents();
 
   // Start mode: pill = start_minimized true, window = false.
   document
@@ -144,6 +194,16 @@ function populateControls() {
         "selected",
         (opt as HTMLElement).dataset.value ===
           String(state.polling_interval_secs),
+      );
+    });
+
+  document
+    .querySelectorAll("#set-pill-dismiss .pref-select-option")
+    .forEach((opt) => {
+      opt.classList.toggle(
+        "selected",
+        (opt as HTMLElement).dataset.value ===
+          String(state.pill_activity_dismiss_secs),
       );
     });
 
@@ -219,10 +279,11 @@ async function renderAccount(showChecking = true) {
     ccBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot ok"></span>
           <div class="status-text">
-            Connected — <strong>${userPlan}</strong> plan
-            <div class="meta">Managed by Claude Code.</div>
+            <span class="provider-label">Claude</span><span class="plan-tag">${userPlan}</span>
+            <div class="meta">
+              <span class="status-dot ok inline"></span>Connected · managed by Claude Code
+            </div>
           </div>
         </div>
         <div class="status-line-actions">
@@ -233,9 +294,8 @@ async function renderAccount(showChecking = true) {
     ccBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot warn"></span>
           <div class="status-text">
-            Token expired
+            <span class="status-dot warn inline"></span>Token expired
             <div class="meta">Run <code>claude login</code> again to renew it.</div>
           </div>
         </div>
@@ -247,9 +307,8 @@ async function renderAccount(showChecking = true) {
     ccBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot danger"></span>
           <div class="status-text">
-            Claude Code not signed in
+            <span class="status-dot danger inline"></span>Claude Code not signed in
             <div class="meta">BurnClaw needs an authenticated Claude Code session to read usage.</div>
           </div>
         </div>
@@ -263,18 +322,122 @@ async function renderAccount(showChecking = true) {
   credsBox.innerHTML = `
     <div class="status-line">
       <div class="status-line-header">
-        <span class="status-dot ${fileFound ? "ok" : "danger"}"></span>
         <div class="status-text">
-          <div class="status-text-row">
-            <span>${fileFound ? "File found" : "File not found"}</span>
-            <code class="path-tag">~/.claude/.credentials.json</code>
+          <span class="provider-label">Claude</span>
+          <div class="meta">
+            <span class="status-dot ${fileFound ? "ok" : "danger"} inline"></span>${
+              fileFound ? "File found" : "File not found"
+            } · <code class="path-tag">~/.claude/.credentials.json</code>
           </div>
-          <div class="meta">BurnClaw reads this file only — never modifies it.</div>
         </div>
       </div>
     </div>`;
 
   updateTradeOff();
+}
+
+async function renderCodexAccount(showChecking = true) {
+  const box = el("codex-status");
+  const fileBox = el("codex-file-status");
+  if (!box || !fileBox) return;
+
+  let minVisible: Promise<unknown> = Promise.resolve();
+  if (showChecking) {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot checking"></span>
+          <div class="status-text">Checking Codex…</div>
+        </div>
+      </div>`;
+    minVisible = new Promise((r) => setTimeout(r, 450));
+  }
+
+  let cstate: "ok" | "api_key_only" | "missing" | "unknown" = "unknown";
+  let email: string | null = null;
+  try {
+    const check = await invoke<any>("check_codex_credentials");
+    cstate = check.state;
+    email = check.email ?? null;
+  } catch {
+    cstate = "missing";
+  }
+
+  let plan: string | null = null;
+  if (cstate === "ok") {
+    try {
+      const usage = await invoke<any>("get_current_codex_usage");
+      if (usage?.plan_type) plan = usage.plan_type;
+    } catch {
+      /* sin datos de uso todavía */
+    }
+  }
+
+  await minVisible;
+
+  if (cstate === "ok") {
+    const planTxt = plan
+      ? `<span class="provider-label">Codex</span><span class="plan-tag">${plan}</span>`
+      : `<span class="provider-label">Codex</span>`;
+    const metaTxt = email
+      ? `Connected · ${email}`
+      : "Connected · managed by Codex CLI";
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            ${planTxt}
+            <div class="meta">
+              <span class="status-dot ok inline"></span>${metaTxt}
+            </div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn subtle" onclick="recheckCodex()">Re-check</button>
+        </div>
+      </div>`;
+  } else if (cstate === "api_key_only") {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            <span class="status-dot warn inline"></span>Signed in with an API key
+            <div class="meta">API-key usage has no plan limits to track. Sign in with ChatGPT to track Codex.</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn" onclick="openCodexLogin()">Open Codex login</button>
+        </div>
+      </div>`;
+  } else {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            <span class="status-dot danger inline"></span>Codex not signed in
+            <div class="meta">Sign in with ChatGPT in Codex CLI to track usage.</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn" onclick="openCodexLogin()">Open Codex login</button>
+        </div>
+      </div>`;
+  }
+
+  const found = cstate === "ok" || cstate === "api_key_only";
+  fileBox.innerHTML = `
+    <div class="status-line">
+      <div class="status-line-header">
+        <div class="status-text">
+          <span class="provider-label">Codex</span>
+          <div class="meta">
+            <span class="status-dot ${found ? "ok" : "danger"} inline"></span>${
+              found ? "File found" : "File not found"
+            } · <code class="path-tag">~/.codex/auth.json</code>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function renderHooks() {
@@ -286,9 +449,8 @@ async function renderHooks() {
     statusBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot checking"></span>
           <div class="status-text">
-            Updating hooks…
+            <span class="status-dot checking inline"></span>Updating hooks…
             <div class="meta">Writing to ~/.claude/settings.json</div>
           </div>
         </div>
@@ -310,9 +472,8 @@ async function renderHooks() {
     statusBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot ok"></span>
           <div class="status-text">
-            Hooks installed
+            <span class="status-dot ok inline"></span>Hooks installed
             <div class="meta">${count} lifecycle events registered · restart Claude Code to apply</div>
           </div>
         </div>
@@ -323,10 +484,9 @@ async function renderHooks() {
     backupBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot ok"></span>
           <div class="status-text">
             <div class="status-text-row">
-              <span>Backup created</span>
+              <span><span class="status-dot ok inline"></span>Backup created</span>
               <code class="path-tag">~/.claude/settings.json.bak</code>
             </div>
             <div class="meta">Original settings saved before BurnClaw made changes.</div>
@@ -337,9 +497,8 @@ async function renderHooks() {
     statusBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot"></span>
           <div class="status-text">
-            Hooks not configured
+            <span class="status-dot inline"></span>Hooks not configured
             <div class="meta">Existing hooks in your settings.json will be preserved (backup created).</div>
           </div>
         </div>
@@ -350,14 +509,70 @@ async function renderHooks() {
     backupBox.innerHTML = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot"></span>
           <div class="status-text">
             <div class="status-text-row">
-              <span>No changes made yet</span>
+              <span><span class="status-dot inline"></span>No changes made yet</span>
               <code class="path-tag">~/.claude/settings.json</code>
             </div>
             <div class="meta">A backup is created automatically when hooks are installed.</div>
           </div>
+        </div>
+      </div>`;
+  }
+}
+
+async function renderCodexNotify() {
+  const box = el("codex-notify-status");
+  if (!box) return;
+
+  if (codexNotifyLoading) {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            <span class="status-dot checking inline"></span>Updating Codex notify…
+            <div class="meta">Writing to ~/.codex/config.toml</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  let installed = false;
+  try {
+    const check = await invoke<any>("check_codex_notify");
+    installed = check.installed;
+  } catch {
+    installed = false;
+  }
+
+  if (installed) {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            <div class="status-text-row">
+              <span><span class="status-dot ok inline"></span>Notify configured</span>
+              <code class="path-tag">~/.codex/config.toml</code>
+            </div>
+            <div class="meta">Codex pings BurnClaw on turn complete / approval · restart Codex to apply.</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn danger" onclick="removeCodexNotify()">Remove</button>
+        </div>
+      </div>`;
+  } else {
+    box.innerHTML = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            <span class="status-dot inline"></span>Not configured
+            <div class="meta">Adds a notify entry to ~/.codex/config.toml (backup created; replaces any existing notify).</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn" onclick="installCodexNotify()">Set up Codex activity</button>
         </div>
       </div>`;
   }
@@ -370,11 +585,23 @@ async function renderHooks() {
   void renderAccount();
 };
 
+(window as any).recheckCodex = () => {
+  void renderCodexAccount();
+};
+
 (window as any).openClaudeLogin = async () => {
   try {
     await invoke("run_claude_login");
   } catch (e) {
     console.error("run_claude_login failed", e);
+  }
+};
+
+(window as any).openCodexLogin = async () => {
+  try {
+    await invoke("run_codex_login");
+  } catch (e) {
+    console.error("run_codex_login failed", e);
   }
 };
 
@@ -402,6 +629,30 @@ async function renderHooks() {
   void renderHooks();
 };
 
+(window as any).installCodexNotify = async () => {
+  codexNotifyLoading = true;
+  void renderCodexNotify();
+  try {
+    await invoke("install_codex_notify");
+  } catch (e) {
+    console.error("install_codex_notify failed", e);
+  }
+  codexNotifyLoading = false;
+  void renderCodexNotify();
+};
+
+(window as any).removeCodexNotify = async () => {
+  codexNotifyLoading = true;
+  void renderCodexNotify();
+  try {
+    await invoke("remove_codex_notify");
+  } catch (e) {
+    console.error("remove_codex_notify failed", e);
+  }
+  codexNotifyLoading = false;
+  void renderCodexNotify();
+};
+
 // ====================================================
 // STATIC CONTROL WIRING
 // ====================================================
@@ -415,7 +666,12 @@ function wireControls() {
 
   // Toggles
   const bools: [string, BoolKey][] = [
-    ["set-orange-border", "orange_border"],
+    ["set-pill-activity", "pill_activity_enabled"],
+    ["set-pill-claude", "pill_activity_claude"],
+    ["set-pill-codex", "pill_activity_codex"],
+    ["set-pill-working", "pill_activity_working"],
+    ["set-pill-awaiting", "pill_activity_awaiting"],
+    ["set-pill-finished", "pill_activity_finished"],
     ["set-console-banner", "console_banner"],
     ["set-auto-start", "auto_start"],
     ["set-notify-usage", "notify_usage_thresholds"],
@@ -427,6 +683,7 @@ function wireControls() {
     const c = input(id);
     c?.addEventListener("change", () => {
       state[key] = c.checked;
+      if (key === "pill_activity_enabled") updateActivityDependents();
       persist();
     });
   }
@@ -460,6 +717,23 @@ function wireControls() {
           10,
         );
         updateTradeOff();
+        persist();
+      });
+    });
+
+  // Auto-dismiss del panel de actividad (segundos; 0 = nunca)
+  document
+    .querySelectorAll("#set-pill-dismiss .pref-select-option")
+    .forEach((opt) => {
+      opt.addEventListener("click", () => {
+        document
+          .querySelectorAll("#set-pill-dismiss .pref-select-option")
+          .forEach((o) => o.classList.remove("selected"));
+        opt.classList.add("selected");
+        state.pill_activity_dismiss_secs = parseInt(
+          (opt as HTMLElement).dataset.value || "6",
+          10,
+        );
         persist();
       });
     });
@@ -535,7 +809,9 @@ async function loadSettings() {
 async function refreshAll() {
   await loadSettings();
   await renderAccount();
+  await renderCodexAccount();
   await renderHooks();
+  await renderCodexNotify();
 }
 
 // Reabierta desde el menú "Settings" del tray: refresca el estado real.
@@ -547,8 +823,21 @@ listen("settings-reopened", () => {
 // silencioso: actualiza el estado si cambió, sin animar en cada alt-tab.
 window.addEventListener("focus", () => {
   void renderAccount(false);
+  void renderCodexAccount(false);
   void renderHooks();
+  void renderCodexNotify();
 });
 
+// Marcas de proveedor (iconos SVG) en Providers — estáticas, se pintan una vez.
+function paintProviderMarks() {
+  document
+    .querySelectorAll<HTMLElement>('.provider-mark[data-provider="claude"]')
+    .forEach((e) => (e.innerHTML = CLAUDE_ICON));
+  document
+    .querySelectorAll<HTMLElement>('.provider-mark[data-provider="codex"]')
+    .forEach((e) => (e.innerHTML = CODEX_ICON));
+}
+
+paintProviderMarks();
 wireControls();
 void refreshAll();

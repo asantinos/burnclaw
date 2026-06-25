@@ -15,6 +15,12 @@ let autoStartEnabled = true;
 let pollingInterval = 60;
 let step2Interval: number | null = null;
 
+// --- Providers a trackear (elegidos en el Welcome) ---
+let trackClaude = true;
+let trackCodex = false;
+let codexState: "ok" | "api_key_only" | "missing" | "unknown" = "unknown";
+let codexActionLoading = false;
+
 // % por plan a 60s (community estimates — ver Consumption budget reference)
 const PCT_AT_60S: Record<string, number> = { pro: 6.8, max: 3.4, max20: 1.4 };
 
@@ -28,6 +34,15 @@ async function refreshCredsState() {
     if (check.subscription_type) userPlan = check.subscription_type;
   } catch {
     credsState = "missing";
+  }
+}
+
+async function refreshCodexState() {
+  try {
+    const check = await invoke<any>("check_codex_credentials");
+    codexState = check.state;
+  } catch {
+    codexState = "missing";
   }
 }
 
@@ -48,11 +63,37 @@ async function refreshHooksState() {
 function renderAll() {
   renderSidebar();
   renderContent();
+  renderProviderSelect();
   renderCredsSection();
+  renderCodexSection();
   renderHooksSection();
   renderFooter();
   updateTradeOff();
   manageStep2Polling();
+}
+
+function currentProvider(): "claude" | "codex" | "both" {
+  if (trackClaude && trackCodex) return "both";
+  if (trackCodex) return "codex";
+  return "claude";
+}
+
+function renderProviderSelect() {
+  const prov = currentProvider();
+  document.querySelectorAll("#provider-select .pref-select-option").forEach((o) => {
+    o.classList.toggle("selected", (o as HTMLElement).dataset.value === prov);
+  });
+  const hint = document.getElementById("provider-hint");
+  if (hint) {
+    const c = credsState === "ok" ? "Claude ✓" : "Claude not found";
+    const x =
+      codexState === "ok"
+        ? "Codex ✓"
+        : codexState === "api_key_only"
+          ? "Codex (API key only)"
+          : "Codex not found";
+    hint.textContent = `Detected: ${c} · ${x}`;
+  }
 }
 
 function renderSidebar() {
@@ -85,6 +126,10 @@ function renderContent() {
 function renderCredsSection() {
   const container = document.getElementById("creds-section");
   if (!container) return;
+  if (!trackClaude) {
+    container.innerHTML = "";
+    return;
+  }
   let html = "";
 
   if (credsActionLoading) {
@@ -143,6 +188,69 @@ function renderCredsSection() {
         <div class="status-line-header">
           <span class="status-dot checking"></span>
           <div class="status-text">Checking Claude Code…</div>
+        </div>
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderCodexSection() {
+  const container = document.getElementById("codex-section");
+  if (!container) return;
+  if (!trackCodex) {
+    container.innerHTML = "";
+    return;
+  }
+  let html = "";
+
+  if (codexActionLoading) {
+    html = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot checking"></span>
+          <div class="status-text">
+            Opening Codex login…
+            <div class="meta">Complete the login in your terminal, then come back here.</div>
+          </div>
+        </div>
+      </div>`;
+  } else if (codexState === "ok") {
+    html = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot ok"></span>
+          <div class="status-text">
+            Codex connected — ChatGPT plan
+            <div class="meta">Read-only usage check. Doesn't consume your quota.</div>
+          </div>
+        </div>
+      </div>`;
+  } else if (codexState === "api_key_only") {
+    html = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot warn"></span>
+          <div class="status-text">
+            Codex signed in with an API key
+            <div class="meta">API-key usage has no plan limits to track. Sign in with ChatGPT to track Codex usage.</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>
+        </div>
+      </div>`;
+  } else {
+    html = `
+      <div class="status-line">
+        <div class="status-line-header">
+          <span class="status-dot danger"></span>
+          <div class="status-text">
+            Codex not signed in
+            <div class="meta">BurnClaw needs a ChatGPT login in Codex CLI to read usage.</div>
+          </div>
+        </div>
+        <div class="status-line-actions">
+          <button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>
         </div>
       </div>`;
   }
@@ -212,7 +320,10 @@ function renderFooter() {
     rightHtml = `<button class="btn btn-primary" onclick="goToStep(2)">Get started</button>`;
   } else if (currentStep === 2) {
     leftHtml = `<button class="btn btn-ghost" onclick="goToStep(1)">Back</button>`;
-    const canContinue = credsState === "ok" && !credsActionLoading;
+    const claudeOk = !trackClaude || credsState === "ok";
+    const codexOk = !trackCodex || codexState === "ok";
+    const canContinue =
+      claudeOk && codexOk && !credsActionLoading && !codexActionLoading;
     rightHtml = `<button class="btn btn-primary" ${
       canContinue ? 'onclick="goToStep(3)"' : "disabled"
     }>Continue</button>`;
@@ -244,19 +355,23 @@ function updateTradeOff() {
 // para detectar el login externo sin que el usuario pulse nada.
 // ====================================================
 function manageStep2Polling() {
+  const claudePending = trackClaude && credsState !== "ok";
+  const codexPending = trackCodex && codexState !== "ok";
   const shouldPoll =
     currentStep === 2 &&
-    (credsState === "missing" ||
-      credsState === "expired" ||
-      credsActionLoading);
+    (claudePending || codexPending || credsActionLoading || codexActionLoading);
 
   if (shouldPoll && step2Interval === null) {
     step2Interval = window.setInterval(async () => {
-      await refreshCredsState();
+      if (trackClaude) await refreshCredsState();
+      if (trackCodex) await refreshCodexState();
       if (credsState === "ok") credsActionLoading = false;
+      if (codexState === "ok") codexActionLoading = false;
+      renderProviderSelect();
       renderCredsSection();
+      renderCodexSection();
       renderFooter();
-      manageStep2Polling(); // se auto-detiene al pasar a ok o salir del paso
+      manageStep2Polling(); // se auto-detiene al conectar o salir del paso
     }, 3000);
   } else if (!shouldPoll && step2Interval !== null) {
     clearInterval(step2Interval);
@@ -287,6 +402,27 @@ function manageStep2Polling() {
     if (credsActionLoading && credsState !== "ok") {
       credsActionLoading = false;
       renderCredsSection();
+      renderFooter();
+      manageStep2Polling();
+    }
+  }, 120000);
+};
+
+(window as any).runCodexLogin = async () => {
+  codexActionLoading = true;
+  renderCodexSection();
+  renderFooter();
+  manageStep2Polling();
+  try {
+    await invoke("run_codex_login");
+  } catch (e) {
+    console.error("run_codex_login failed", e);
+  }
+  // Timeout de seguridad: si en 2 min no se detecta el login, quita el spinner.
+  setTimeout(() => {
+    if (codexActionLoading && codexState !== "ok") {
+      codexActionLoading = false;
+      renderCodexSection();
       renderFooter();
       manageStep2Polling();
     }
@@ -333,6 +469,8 @@ function manageStep2Polling() {
     await invoke("complete_setup", {
       autoStart: autoStartEnabled,
       pollingIntervalSecs: pollingInterval,
+      trackClaude,
+      trackCodex,
     });
     // La ventana de setup la cierra el backend (complete_setup).
   } catch (e) {
@@ -387,6 +525,17 @@ document
     });
   });
 
+document
+  .querySelectorAll("#provider-select .pref-select-option")
+  .forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const v = (opt as HTMLElement).dataset.value;
+      trackClaude = v === "claude" || v === "both";
+      trackCodex = v === "codex" || v === "both";
+      renderAll();
+    });
+  });
+
 const autostartEl = document.getElementById(
   "pref-autostart",
 ) as HTMLInputElement | null;
@@ -396,9 +545,13 @@ autostartEl?.addEventListener("change", (e) => {
 
 // Re-comprobar credenciales al volver el foco a la ventana (alt-tab tras login).
 window.addEventListener("focus", async () => {
-  await refreshCredsState();
+  if (trackClaude) await refreshCredsState();
+  if (trackCodex) await refreshCodexState();
   if (credsState === "ok") credsActionLoading = false;
+  if (codexState === "ok") codexActionLoading = false;
+  renderProviderSelect();
   renderCredsSection();
+  renderCodexSection();
   renderFooter();
   manageStep2Polling();
 });
@@ -406,6 +559,7 @@ window.addEventListener("focus", async () => {
 // Reabierto desde el menú "Settings" del tray: refresca el estado real.
 listen("setup-reopened", async () => {
   await refreshCredsState();
+  await refreshCodexState();
   await refreshHooksState();
   renderAll();
 });
@@ -415,7 +569,24 @@ listen("setup-reopened", async () => {
 // ====================================================
 async function init() {
   await refreshCredsState();
+  await refreshCodexState();
   await refreshHooksState();
+
+  // Auto-detección: preseleccionar según qué CLIs estén disponibles. Si solo
+  // hay uno, se elige ese; si hay ambos (o ninguno), se deja "Both".
+  const hasClaude = credsState === "ok";
+  const hasCodex = codexState === "ok";
+  if (hasCodex && !hasClaude) {
+    trackClaude = false;
+    trackCodex = true;
+  } else if (hasClaude && !hasCodex) {
+    trackClaude = true;
+    trackCodex = false;
+  } else {
+    trackClaude = true;
+    trackCodex = true;
+  }
+
   renderAll();
 }
 

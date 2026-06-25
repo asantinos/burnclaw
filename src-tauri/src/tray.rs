@@ -6,8 +6,7 @@ use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition,
 };
 
-use crate::anthropic::UsageSnapshot;
-use crate::{ForceRefresh, LastWindowPos};
+use crate::{ForceRefresh, LastWindowPos, SharedCodexUsage, SharedUsage};
 
 const TRAY_ID: &str = "burnclaw-tray";
 const WINDOW_LABEL: &str = "main";
@@ -129,28 +128,59 @@ fn position_top_center(window: &tauri::WebviewWindow) {
     }
 }
 
-pub fn update_tray_dynamic(
-    app: &AppHandle,
-    snap: &UsageSnapshot,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Actualiza icono + tooltip del tray a partir del estado compartido de AMBOS
+/// proveedores. El color lo manda el % máximo entre todos los presentes; el
+/// tooltip lista una línea por proveedor activo + el reset más próximo.
+pub fn update_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let tray = app.tray_by_id(TRAY_ID).ok_or("tray icon not found")?;
 
-    let max_pct = snap.session_5h_pct.max(snap.weekly_pct);
+    let claude = app
+        .try_state::<SharedUsage>()
+        .map(|s| s.lock().unwrap().clone())
+        .flatten();
+    let codex = app
+        .try_state::<SharedCodexUsage>()
+        .map(|s| s.lock().unwrap().clone())
+        .flatten();
+
+    let mut max_pct = 0.0_f64;
+    let mut lines: Vec<String> = Vec::new();
+
+    // Reset opcional formateado entre paréntesis (vacío si no hay dato).
+    let paren = |reset: Option<DateTime<Utc>>| {
+        reset
+            .map(|r| format!(" ({})", format_countdown(&r)))
+            .unwrap_or_default()
+    };
+
+    // El tooltip del tray de Windows tiene límite de caracteres, así que solo
+    // muestra la ventana de 5h. El color del icono sí considera ambas ventanas
+    // (max_pct) para no perder el aviso de la semanal.
+    if let Some(c) = &claude {
+        max_pct = max_pct.max(c.session_5h_pct).max(c.weekly_pct);
+        lines.push(format!(
+            "Claude · 5h {}%{}",
+            c.session_5h_pct.round() as i64,
+            paren(Some(c.session_5h_reset_at)),
+        ));
+    }
+    if let Some(x) = &codex {
+        max_pct = max_pct.max(x.session_5h_pct).max(x.weekly_pct);
+        lines.push(format!(
+            "Codex · 5h {}%{}",
+            x.session_5h_pct.round() as i64,
+            paren(x.session_5h_reset_at),
+        ));
+    }
+
+    // Sin datos aún: dejar el icono idle del arranque.
+    if lines.is_empty() {
+        return Ok(());
+    }
+
     let image = Image::from_bytes(icon_bytes_for_pct(max_pct))?;
     tray.set_icon(Some(image))?;
-
-    let next_reset = if snap.session_5h_reset_at <= snap.weekly_reset_at {
-        snap.session_5h_reset_at
-    } else {
-        snap.weekly_reset_at
-    };
-    let tooltip = format!(
-        "Session {}% · Weekly {}%\nResets in {}",
-        snap.session_5h_pct.round() as i64,
-        snap.weekly_pct.round() as i64,
-        format_countdown(&next_reset),
-    );
-    tray.set_tooltip(Some(tooltip))?;
+    tray.set_tooltip(Some(lines.join("\n")))?;
 
     Ok(())
 }

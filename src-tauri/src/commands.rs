@@ -5,11 +5,12 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State};
 
 use crate::anthropic::UsageSnapshot;
+use crate::codex::{self, CodexUsageSnapshot};
 use crate::credentials;
 use crate::logging;
 use crate::setup_state::SetupState;
 use crate::status::StatusSnapshot;
-use crate::{ForceRefresh, SharedSettings, SharedStatus, SharedUsage};
+use crate::{ForceRefresh, SharedCodexUsage, SharedSettings, SharedStatus, SharedUsage};
 
 /// Marca distintiva de los hooks de BurnClaw dentro de settings.json.
 const HOOK_MARKER: &str = "127.0.0.1:9876";
@@ -26,8 +27,43 @@ pub fn get_current_usage(state: State<'_, SharedUsage>) -> Option<UsageSnapshot>
 }
 
 #[tauri::command]
+pub fn get_current_codex_usage(state: State<'_, SharedCodexUsage>) -> Option<CodexUsageSnapshot> {
+    state.lock().unwrap().clone()
+}
+
+#[tauri::command]
 pub fn get_current_status(state: State<'_, SharedStatus>) -> Option<StatusSnapshot> {
     state.lock().unwrap().clone()
+}
+
+/// Estado de la cuenta de Codex para el wizard / Settings: si hay login
+/// ChatGPT utilizable, solo API key (sin cuota de plan), o nada.
+#[derive(Serialize)]
+pub struct CodexCredentialsCheck {
+    pub state: String, // "ok" | "api_key_only" | "missing"
+    pub account_id: Option<String>,
+    pub email: Option<String>,
+}
+
+#[tauri::command]
+pub fn check_codex_credentials() -> CodexCredentialsCheck {
+    match codex::load_raw() {
+        Ok(auth) if auth.access_token().is_some() => CodexCredentialsCheck {
+            state: "ok".into(),
+            account_id: auth.account_id(),
+            email: auth.email(),
+        },
+        Ok(auth) if auth.openai_api_key.is_some() => CodexCredentialsCheck {
+            state: "api_key_only".into(),
+            account_id: None,
+            email: None,
+        },
+        _ => CodexCredentialsCheck {
+            state: "missing".into(),
+            account_id: None,
+            email: None,
+        },
+    }
 }
 
 /// Fuerza un fetch inmediato de uso (mismo mecanismo que "Refresh now" del
@@ -134,6 +170,16 @@ pub fn check_credentials() -> CredentialsCheck {
 pub fn run_claude_login() -> Result<(), String> {
     Command::new("cmd")
         .args(["/c", "start", "cmd", "/k", "claude", "login"])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Abre `codex login` en una terminal nueva de Windows (queda abierta con /k).
+#[tauri::command]
+pub fn run_codex_login() -> Result<(), String> {
+    Command::new("cmd")
+        .args(["/c", "start", "cmd", "/k", "codex", "login"])
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -308,6 +354,103 @@ pub fn remove_hooks() -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
+// Integración de Codex — clave `notify` en ~/.codex/config.toml
+// ---------------------------------------------------------------------------
+// Codex no usa hooks como Claude Code: ejecuta el programa de `notify` al
+// terminar un turno o pedir aprobación, pasándole el payload JSON como arg.
+// BurnClaw se apunta a sí mismo (`--codex-notify`) como ese programa.
+
+/// Marca que identifica la entrada de BurnClaw dentro de config.toml.
+const CODEX_NOTIFY_MARKER: &str = "--codex-notify";
+
+fn codex_config_path() -> Result<PathBuf, String> {
+    if let Ok(home) = std::env::var("CODEX_HOME") {
+        if !home.is_empty() {
+            return Ok(PathBuf::from(home).join("config.toml"));
+        }
+    }
+    Ok(dirs::home_dir()
+        .ok_or("home_dir unavailable")?
+        .join(".codex")
+        .join("config.toml"))
+}
+
+/// ¿Es una asignación de la clave raíz `notify`? (p. ej. `notify = [...]`).
+fn is_notify_line(line: &str) -> bool {
+    line.trim_start()
+        .strip_prefix("notify")
+        .map(|rest| rest.trim_start().starts_with('='))
+        .unwrap_or(false)
+}
+
+#[derive(Serialize)]
+pub struct CodexNotifyCheck {
+    pub installed: bool,
+}
+
+#[tauri::command]
+pub fn check_codex_notify() -> CodexNotifyCheck {
+    let installed = codex_config_path()
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .map(|c| c.contains(CODEX_NOTIFY_MARKER))
+        .unwrap_or(false);
+    CodexNotifyCheck { installed }
+}
+
+#[tauri::command]
+pub fn install_codex_notify() -> Result<(), String> {
+    let path = codex_config_path()?;
+    let exe = std::env::current_exe()
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .to_string();
+
+    let existing = if path.exists() {
+        let backup = path.with_extension("toml.bak");
+        std::fs::copy(&path, &backup).map_err(|e| e.to_string())?;
+        std::fs::read_to_string(&path).map_err(|e| e.to_string())?
+    } else {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        String::new()
+    };
+
+    // `notify` debe ir en la raíz, antes de cualquier tabla: se quita la que
+    // hubiera y se antepone la nuestra. Strings TOML literales (comillas
+    // simples) para no escapar los backslashes de la ruta de Windows.
+    let cleaned: Vec<&str> = existing.lines().filter(|l| !is_notify_line(l)).collect();
+    let line = format!("notify = ['{}', '{}']", exe, CODEX_NOTIFY_MARKER);
+    let rest = cleaned.join("\n");
+    let content = if rest.trim().is_empty() {
+        format!("{}\n", line)
+    } else {
+        format!("{}\n{}\n", line, rest.trim_start_matches('\n'))
+    };
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_codex_notify() -> Result<(), String> {
+    let path = codex_config_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let backup = path.with_extension("toml.bak");
+    std::fs::copy(&path, &backup).map_err(|e| e.to_string())?;
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    // Quitar solo la línea de BurnClaw (la que lleva el marcador).
+    let cleaned: Vec<&str> = content
+        .lines()
+        .filter(|l| !(is_notify_line(l) && l.contains(CODEX_NOTIFY_MARKER)))
+        .collect();
+    std::fs::write(&path, cleaned.join("\n")).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Setup wizard — preferencias y cierre
 // ---------------------------------------------------------------------------
 
@@ -341,6 +484,8 @@ pub fn set_auto_start(enabled: bool) -> Result<(), String> {
 pub fn complete_setup(
     auto_start: bool,
     polling_interval_secs: u64,
+    track_claude: bool,
+    track_codex: bool,
     app: AppHandle,
     shared: State<'_, SharedSettings>,
 ) -> Result<(), String> {
@@ -351,6 +496,9 @@ pub fn complete_setup(
         s.completed = true;
         s.auto_start = auto_start;
         s.polling_interval_secs = polling_interval_secs;
+        s.providers_chosen = true;
+        s.track_claude = track_claude;
+        s.track_codex = track_codex;
         s.clone()
     };
     setup.save().map_err(|e| e.to_string())?;
@@ -400,7 +548,7 @@ pub fn save_settings(
 
     *shared.lock().unwrap() = new_settings.clone();
 
-    // La ventana principal aplica orange_border / console_banner al vuelo.
+    // La ventana principal aplica pill_activity / console_banner al vuelo.
     let _ = app.emit_to("main", "settings-changed", new_settings);
     logging::app("settings saved");
     Ok(())

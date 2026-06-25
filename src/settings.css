@@ -58,7 +58,10 @@ body {
   padding: 26px 18px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  /* Sin gap global: el espaciado lo dan los márgenes de las cabeceras, para
+     que cada título quede pegado a sus opciones y con separación solo entre
+     grupos. */
+  gap: 0;
 }
 
 .sidebar-brand {
@@ -92,7 +95,12 @@ body {
   letter-spacing: 0.08em;
   color: var(--text-tertiary);
   padding: 0 8px;
-  margin-top: 4px;
+  /* Espacio por encima (separa grupos) y poco por debajo (pega a sus opciones). */
+  margin: 18px 0 5px;
+}
+/* La primera cabecera va justo bajo el brand, sin el margen de grupo. */
+.sidebar-heading:first-of-type {
+  margin-top: 14px;
 }
 
 .nav-items {
@@ -156,7 +164,9 @@ body {
 
 .panel-body {
   flex: 1;
-  padding: 32px 36px;
+  /* Más padding abajo para que el contenido no quede pegado al borde inferior
+     (sobre todo en las secciones que hacen scroll). */
+  padding: 32px 36px 48px;
   overflow-y: auto;
 }
 .panel-body::-webkit-scrollbar { width: 6px; }
@@ -210,24 +220,93 @@ body {
 }
 .section-subheading:first-of-type { margin-top: 0; }
 
+/* Cabecera de grupo (un nivel por encima de section-subheading), para separar
+   bloques dentro de una sección (p. ej. Integration / On-screen). */
+.section-group {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
+  margin-top: 28px;
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.section-group:first-of-type { margin-top: 0; }
+/* Subheading justo bajo un grupo: pegado a su cabecera. */
+.section-group + .section-subheading { margin-top: 10px; }
+
+/* Nota corta bajo un subheading (p. ej. el aviso de los archivos). */
+.section-note {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: -2px 0 10px;
+  line-height: 1.4;
+}
+
 /* =========================================================
    STATUS LINE (reutilizado del wizard)
    ========================================================= */
 .status-line {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px 0;
+  gap: 10px;
+  padding: 11px 0;
   border-bottom: 1px solid var(--border);
 }
 .status-line:last-child { border-bottom: none; }
+
+/* Providers: fila = icono de marca + estado, estilo cabecera del widget. */
+.provider-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.provider-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.provider-mark {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  color: var(--text-secondary);
+}
+.provider-mark svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+/* El icono de Claude tiene más aire: a igual px se ve más pequeño que el de
+   Codex, así que se compensa. */
+.provider-mark[data-provider="claude"] svg {
+  width: 22px;
+  height: 22px;
+}
+.provider-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.plan-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+}
 .status-line-header {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
 .status-line-header .status-dot { margin-top: 6px; }
-.status-line-actions { padding-left: 18px; }
+.status-line-actions { padding-left: 0; }
 
 .status-dot {
   width: 8px;
@@ -236,7 +315,19 @@ body {
   flex-shrink: 0;
   background: var(--text-quaternary);
 }
-.status-dot.ok { background: var(--ok); }
+/* Mismo verde que los rings de la pill, para consistencia. */
+.status-dot.ok { background: #4ade80; }
+/* Variante inline (a la izquierda de "Connected", dentro del meta). */
+.status-dot.inline {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  margin-top: 0;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
 .status-dot.warn { background: var(--warn); }
 .status-dot.danger { background: var(--danger); }
 .status-dot.checking {
@@ -282,36 +373,41 @@ body {
   white-space: nowrap;
 }
 
+/* Botones pequeños y sutiles: por defecto outlined suave (no relleno oscuro). */
 .action-btn {
-  background: var(--text-primary);
-  color: var(--bg);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  padding: 4px 10px;
+  border-radius: 5px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 150ms ease;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   white-space: nowrap;
 }
-.action-btn:hover { background: #2a2520; }
-.action-btn.subtle {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border-strong);
-}
-.action-btn.subtle:hover {
+.action-btn:hover {
   background: var(--surface-subtle);
   border-color: var(--text-tertiary);
+}
+/* Sutil pero con fondo que se note (p. ej. Re-check): relleno suave sin borde. */
+.action-btn.subtle {
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.action-btn.subtle:hover {
+  background: var(--border);
+  color: var(--text-primary);
 }
 .action-btn.danger {
   background: transparent;
   color: var(--danger);
-  border: 1px solid rgba(176, 72, 72, 0.3);
+  border-color: rgba(176, 72, 72, 0.28);
 }
 .action-btn.danger:hover {
   background: rgba(176, 72, 72, 0.06);
@@ -550,6 +646,12 @@ body {
   margin-top: 22px;
   display: flex;
   gap: 8px;
+}
+
+/* Sub-opciones deshabilitadas (p. ej. cuando su master toggle está off). */
+.pref-disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 /* =========================================================

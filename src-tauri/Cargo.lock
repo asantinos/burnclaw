@@ -379,9 +379,10 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "burnclaw"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dirs 5.0.1",
  "notify-rust",

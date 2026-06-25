@@ -19,47 +19,8 @@
           data-tooltip="Loading..."
           data-tooltip-pos="below"
         ></span>
-        <div
-          class="ring"
-          id="ring-session"
-          data-tooltip="Session — loading..."
-          data-tooltip-pos="below"
-        >
-          <svg viewBox="0 0 36 36">
-            <circle class="track" cx="18" cy="18" r="15"></circle>
-            <circle
-              class="progress"
-              id="progress-session"
-              cx="18"
-              cy="18"
-              r="15"
-              stroke-dasharray="94.25"
-              stroke-dashoffset="94.25"
-            ></circle>
-          </svg>
-          <span class="label" id="label-session">—</span>
-        </div>
-        <div
-          class="ring"
-          id="ring-weekly"
-          data-tooltip="Weekly — loading..."
-          data-tooltip-pos="below"
-          data-tooltip-align="end"
-        >
-          <svg viewBox="0 0 36 36">
-            <circle class="track" cx="18" cy="18" r="15"></circle>
-            <circle
-              class="progress"
-              id="progress-weekly"
-              cx="18"
-              cy="18"
-              r="15"
-              stroke-dasharray="94.25"
-              stroke-dashoffset="94.25"
-            ></circle>
-          </svg>
-          <span class="label" id="label-weekly">—</span>
-        </div>
+        <!-- Un grupo de rings por proveedor activo, generado en main.ts. -->
+        <div class="pill-providers" id="pill-providers"></div>
       </div>
 
       <!-- ----- contenido WIDGET ----- -->
@@ -105,47 +66,9 @@
           <span class="banner-text"></span>
         </div>
 
-        <section class="metric">
-          <div class="metric-head">
-            <span class="metric-label"
-              >Session 5h
-              <span
-                class="claim-tag"
-                id="session-tag"
-                data-tooltip="This window dominates your usage"
-              ></span
-            ></span>
-            <span class="metric-value" id="session-pct">—</span>
-          </div>
-          <div class="metric-bar">
-            <div class="metric-bar-fill" id="session-bar"></div>
-          </div>
-          <div class="metric-meta">
-            <span id="session-countdown">—</span>
-            <span id="session-reset">—</span>
-          </div>
-        </section>
-
-        <section class="metric">
-          <div class="metric-head">
-            <span class="metric-label"
-              >Weekly 7d
-              <span
-                class="claim-tag"
-                id="weekly-tag"
-                data-tooltip="This window dominates your usage"
-              ></span
-            ></span>
-            <span class="metric-value" id="weekly-pct">—</span>
-          </div>
-          <div class="metric-bar">
-            <div class="metric-bar-fill" id="weekly-bar"></div>
-          </div>
-          <div class="metric-meta">
-            <span id="weekly-countdown">—</span>
-            <span id="weekly-reset">—</span>
-          </div>
-        </section>
+        <!-- Un bloque por proveedor activo (cabecera + Session 5h + Weekly 7d),
+             generado en main.ts. -->
+        <div class="providers" id="providers"></div>
 
         <footer class="footer">
           <div class="footer-left">
@@ -167,9 +90,25 @@
             </button>
             <span id="updated-ago">—</span>
           </div>
-          <a href="#" id="view-details">view details</a>
         </footer>
       </div>
+    </div>
+
+    <!-- Panel de actividad: se desliza bajo la pill (estado colapsado) al
+         recibir eventos de Claude/Codex. Color por proveedor. -->
+    <div id="pill-notif" class="pill-notif">
+      <span class="pill-notif-icon"></span>
+      <span class="pill-notif-text"></span>
+      <button class="pill-notif-close" id="pill-notif-close" aria-label="Dismiss">
+        <svg viewBox="0 0 16 16" width="11" height="11">
+          <path
+            d="M4 4L12 12 M12 4L4 12"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
   </body>
 </html>

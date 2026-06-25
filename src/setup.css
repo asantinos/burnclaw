@@ -307,6 +307,26 @@ body {
   color: var(--text-tertiary);
   letter-spacing: 0.04em;
 }
+.welcome-providers {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.welcome-providers-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.welcome-providers-hint {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  min-height: 14px;
+}
 
 /* =========================================================
    STATUS DOT (sutil indicador inline)

@@ -46,7 +46,7 @@
           </div>
         </div>
 
-        <div class="sidebar-footer">v0.1.0</div>
+        <div class="sidebar-footer">v1.0.0</div>
       </aside>
 
       <div class="panel">
@@ -59,22 +59,33 @@
               </div>
               <div class="welcome-name">BurnClaw</div>
               <div class="welcome-tagline">
-                Keep an eye on your Claude usage from the system tray.
-                Real-time session and weekly limits, without leaving your
-                terminal.
+                Keep an eye on your Claude and Codex usage from the system
+                tray. Real-time session and weekly limits, without leaving
+                your terminal.
               </div>
-              <div class="welcome-meta">Windows · requires Claude Code</div>
+              <div class="welcome-meta">Windows · Claude Code and/or Codex CLI</div>
+
+              <div class="welcome-providers">
+                <div class="welcome-providers-label">What do you want to track?</div>
+                <div class="pref-select" id="provider-select">
+                  <div class="pref-select-option" data-value="claude">Claude</div>
+                  <div class="pref-select-option" data-value="codex">Codex</div>
+                  <div class="pref-select-option selected" data-value="both">Both</div>
+                </div>
+                <div class="welcome-providers-hint" id="provider-hint">Detecting…</div>
+              </div>
             </div>
           </div>
 
           <!-- STEP 2: CREDENTIALS -->
           <div class="step-content" data-step-content="2">
-            <h2 class="step-title">Connect Claude Code</h2>
+            <h2 class="step-title">Connect your accounts</h2>
             <p class="step-desc">
-              BurnClaw reads the OAuth token from your local Claude Code
-              installation. Nothing is sent to external servers.
+              BurnClaw reads the OAuth token from your local CLIs. Nothing is
+              sent to external servers.
             </p>
             <div id="creds-section"></div>
+            <div id="codex-section"></div>
           </div>
 
           <!-- STEP 3: HOOKS -->

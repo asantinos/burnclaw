@@ -9,12 +9,28 @@ use std::path::PathBuf;
 #[serde(default)]
 pub struct SetupState {
     pub completed: bool,
+    // --- Providers a trackear (elegidos en el wizard) ---
+    /// true una vez el usuario eligió proveedores en el wizard. Si es false en
+    /// un setup ya completado (instalación anterior a esta feature), el gateo
+    /// cae a auto-detección para no romper el tracking existente.
+    pub providers_chosen: bool,
+    pub track_claude: bool,
+    pub track_codex: bool,
     // --- Behavior ---
     pub auto_start: bool,
     pub start_minimized: bool,
     pub polling_interval_secs: u64,
     // --- Activity hooks (feedback visual) ---
-    pub orange_border: bool,
+    /// Panel-notificación que se desliza bajo la pill al haber actividad.
+    pub pill_activity_enabled: bool,
+    /// Qué proveedores disparan el panel (separable Claude / Codex).
+    pub pill_activity_claude: bool,
+    pub pill_activity_codex: bool,
+    pub pill_activity_working: bool,
+    pub pill_activity_awaiting: bool,
+    pub pill_activity_finished: bool,
+    /// Segundos hasta auto-ocultar el panel; 0 = no se oculta solo.
+    pub pill_activity_dismiss_secs: u64,
     pub console_banner: bool,
     // --- Advanced: umbrales de notificación de uso ---
     pub warning_threshold: u32,
@@ -30,10 +46,19 @@ impl Default for SetupState {
     fn default() -> Self {
         Self {
             completed: false,
+            providers_chosen: false,
+            track_claude: true,
+            track_codex: false,
             auto_start: true,
             start_minimized: true,
             polling_interval_secs: 60,
-            orange_border: true,
+            pill_activity_enabled: true,
+            pill_activity_claude: true,
+            pill_activity_codex: true,
+            pill_activity_working: false,
+            pill_activity_awaiting: true,
+            pill_activity_finished: true,
+            pill_activity_dismiss_secs: 6,
             console_banner: true,
             warning_threshold: 80,
             critical_threshold: 95,

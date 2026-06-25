@@ -5,7 +5,7 @@
 <h1 align="center">BurnClaw</h1>
 
 <p align="center">
-  Your Claude usage, live in the Windows system tray.
+  Your Claude and Codex usage, live in the Windows system tray.
 </p>
 
 <p align="center">
@@ -17,17 +17,17 @@
 ---
 
 BurnClaw is a tiny desktop widget that lives in your Windows tray and shows how
-much of your Claude plan you've used — the rolling 5-hour window and the weekly
-window — read straight from the Anthropic API. A quick glance, no terminal, no
-browser tab.
+much of your **Claude** and **OpenAI Codex** plans you've used — the rolling
+5-hour window and the weekly window for each — read straight from their APIs. A
+quick glance, no terminal, no browser tab. Track one provider or both.
 
-It also reflects **Claude Code activity** in real time: while a session is
-running the widget gets an orange border and a small console banner, and you
-get a native notification when Claude finishes or needs you.
+It also reflects **agent activity** in real time: when Claude Code or Codex is
+working, finishes, or needs your input, a small notification slides down under
+the pill (orange for Claude, slate for Codex) and you get a native notification.
 
 > [!NOTE]
 > BurnClaw started as a personal project. It's published so anyone can use it,
-> but it stays Windows-only and relies on an unofficial OAuth approach — see
+> but it stays Windows-only and relies on unofficial endpoints — see
 > [How it works](#how-it-works) before you depend on it.
 
 ## Contents
@@ -37,7 +37,7 @@ get a native notification when Claude finishes or needs you.
 - [Requirements](#requirements)
 - [Install](#install)
 - [First run](#first-run)
-- [Activity hooks](#activity-hooks)
+- [Activity](#activity)
 - [Settings](#settings)
 - [Three signals, never mixed](#three-signals-never-mixed)
 - [Tray icon](#tray-icon)
@@ -49,54 +49,57 @@ get a native notification when Claude finishes or needs you.
 BurnClaw is a single window that morphs between two states. Click the pill to
 expand it; click the **✕** to collapse it back.
 
-<!-- capture: the collapsed pill — status dot + two progress rings (session, weekly) -->
-<!-- capture: the expanded widget — header, both metric bars with resets, footer -->
+<!-- capture: the collapsed pill — status dot + one concentric dual-ring per provider (brand icon centered) -->
+<!-- capture: the expanded widget — a block per provider (icon, name, plan) with session/weekly bars -->
 
 | Pill (collapsed) | Widget (expanded) |
 | :---: | :---: |
 | <img src="docs/pill.png" alt="Pill state" /> | <img src="docs/widget.png" alt="Widget state" /> |
 
-The **pill** is a status dot plus two rings: the 5-hour session window and the
-7-day weekly window. The **widget** breaks the same numbers out with progress
-bars, reset countdowns, a `DOMINANT` tag on whichever window Anthropic is
-currently enforcing, and a refresh button.
+The **pill** shows a status dot plus one ring per tracked provider — two
+concentric arcs, the 5-hour window outside and the 7-day window inside, with the
+provider's icon in the centre. The **widget** breaks the same numbers out per
+provider with progress bars, reset countdowns, a `DOMINANT` tag on whichever
+window Anthropic is currently enforcing (Claude only), and a refresh button.
 
 ## How it works
 
-Anthropic exposes a unified usage figure through the
+**Claude.** Anthropic exposes a unified usage figure through the
 `anthropic-ratelimit-unified-*` response headers — but only when you
-authenticate as Claude Code. A normal API key doesn't get them.
+authenticate as Claude Code. So BurnClaw **reuses the OAuth token Claude Code
+already stores** (`%USERPROFILE%\.claude\.credentials.json`). Once a minute it
+makes a minimal request to `api.anthropic.com` with the cheapest model
+(Haiku, `max_tokens: 1`) and reads the rate-limit headers off the response.
 
-So BurnClaw **reuses the OAuth token that Claude Code already stores** on your
-machine (`%USERPROFILE%\.claude\.credentials.json`). Once a minute it makes a
-minimal request to `api.anthropic.com` using the cheapest model
-(Haiku, `max_tokens: 1`), reads the rate-limit headers off the response, and
-updates the tray. That's roughly 3% of a Max 5x session window per day — small,
-but not zero, and configurable down further in Settings.
+**Codex.** BurnClaw reads the token Codex CLI stores
+(`%USERPROFILE%\.codex\auth.json`) and queries the same internal usage endpoint
+Codex clients use (`chatgpt.com/backend-api/wham/usage`). This is a **read-only**
+call — it returns your usage directly and costs **no quota**.
 
-The only network calls BurnClaw makes are to `api.anthropic.com` (usage) and
+The only network calls BurnClaw makes are to those usage endpoints and to
 `status.claude.com` (service status). No telemetry, no analytics, no servers of
-its own. It reads `.credentials.json` — it never modifies it.
+its own. It reads the credential files — it never modifies them.
 
 > [!WARNING]
-> **This is an unofficial approach.** Using Claude Code's OAuth token from a
-> client that isn't Claude Code is an undocumented, ToS-gray area. Anthropic
-> could block it at any time — they've changed similar things before. If
-> BurnClaw suddenly stops working with an auth error, that's almost certainly
-> why. For personal, low-frequency use the risk is low, but it's a risk you're
-> accepting.
+> **These are unofficial approaches.** Using Claude Code's OAuth token, or
+> Codex's internal usage endpoint, from a client that isn't the official CLI is
+> undocumented, ToS-gray territory. Either provider could block it at any time —
+> they've changed similar things before. If BurnClaw suddenly stops working with
+> an auth error, that's almost certainly why. For personal, low-frequency use
+> the risk is low, but it's a risk you're accepting.
 
 ## Requirements
 
 - **Windows 10 or 11.**
-- **Claude Code installed and logged in.** BurnClaw doesn't care whether you're
-  on Pro or Max — it just needs the OAuth token that `claude login` produces.
+- **Claude Code and/or Codex CLI installed and logged in.** BurnClaw doesn't
+  care which plan you're on — it just needs the OAuth token that `claude login`
+  / `codex login` produces. Track either provider, or both.
 
 ## Install
 
 Download the latest installer from the
 [**Releases**](https://github.com/asantinos/burnclaw/releases) page, run it,
-and BurnClaw appears in your tray.
+and BurnClaw appears in your tray. (Per-user install, no admin needed.)
 
 <details>
 <summary>Build from source</summary>
@@ -125,52 +128,60 @@ bun run tauri build
 
 On first launch you'll get a short setup wizard:
 
-<!-- capture: the setup wizard, e.g. the Connection step showing "Connected — max plan" -->
+<!-- capture: the setup wizard — the Welcome step with the Claude / Codex / Both selector -->
 <img src="docs/wizard.png" alt="Setup wizard" />
 
-1. **Welcome** — what BurnClaw is.
-2. **Connection** — checks that Claude Code is signed in. If not, it can open
-   `claude login` for you.
-3. **Activity hooks** — optionally wires up the Claude Code integration (see
-   below). You can skip this and do it later.
+1. **Welcome** — pick what to track: **Claude**, **Codex**, or **both**.
+   BurnClaw auto-detects which CLIs you have installed and preselects them.
+2. **Connection** — checks each chosen provider is signed in. If not, it can
+   open `claude login` / `codex login` for you.
+3. **Activity** — optionally wires up the integration (see below). You can skip
+   this and do it later.
 4. **Preferences** — start with Windows, polling interval.
 
 When you're done, the pill appears next to the tray.
 
-## Activity hooks
+## Activity
 
-This is the optional part that makes the widget react to Claude Code in real
-time. BurnClaw runs a tiny HTTP server on `127.0.0.1:9876` (localhost only,
-never exposed to the network) and Claude Code pings it on lifecycle events —
-session start, tool calls, input requests, stop.
+The optional part that makes the widget react in real time. BurnClaw runs a tiny
+HTTP server on `127.0.0.1:9876` (localhost only, never exposed to the network).
 
-| Pill | Widget |
-| :---: | :---: |
-| <img src="docs/activity.png" alt="Pill during Claude Code activity" /> | <img src="docs/activity-widget.png" alt="Widget during Claude Code activity" /> |
+- **Claude Code** pings it directly via hooks (session start, tool calls, input
+  requests, stop).
+- **Codex** calls it through its `notify` command — BurnClaw registers itself as
+  the notify handler and forwards the event.
 
-While a session runs the border turns orange. Expanded, the widget also shows a
-console banner with what Claude is doing right now, and you get a native
-notification when Claude finishes or is waiting for you.
+| Needs you | Finished | Widget |
+| :---: | :---: | :---: |
+| <img src="docs/activity-1.png" alt="Pill — Claude needs you" /> | <img src="docs/activity-2.png" alt="Pill — Claude finished" /> | <img src="docs/activity-widget.png" alt="Widget during agent activity" /> |
 
-The wizard can install the hooks for you (it merges into your
-`~/.claude/settings.json` and keeps a `.bak`, never overwriting hooks you
-already have). To do it by hand, or to understand exactly what gets added, see
-[HOOKS_SETUP.md](HOOKS_SETUP.md).
+When an agent is active, a notification slides down under the pill — **orange for
+Claude, slate for Codex** — with what it's doing ("working…", "needs you",
+"finished"). You choose which events trigger it, per provider, and how long it
+stays, in Settings. Expanded, the widget also shows a console banner, and you
+get a native OS notification when an agent finishes or is waiting for you.
+
+The wizard (or **Settings → Integration**) can install this for you: Claude's
+hooks merge into `~/.claude/settings.json`, Codex's handler into
+`~/.codex/config.toml` — both with a `.bak` backup, never clobbering what you
+already have. For the Claude hooks by hand, see [HOOKS_SETUP.md](HOOKS_SETUP.md).
 
 ## Settings
 
 Right-click the tray icon → **Settings**. Everything applies live — no restart.
 
-<!-- capture: the Settings window, e.g. the Advanced section with thresholds + notification toggles -->
+<!-- capture: the Settings window — the Providers section showing both Claude and Codex connected -->
 <img src="docs/settings.png" alt="Settings window" />
 
-- **Account** — connection status and the credentials file BurnClaw reads.
-- **Activity hooks** — install/remove the hooks, toggle the orange border and
-  console banner.
+- **Providers** — connection status, plan and credential file for Claude and
+  Codex.
+- **Integration** — install/remove Claude Code hooks and the Codex notify
+  handler.
+- **Activity** — the slide-down pill panel (enable per provider, pick which
+  events, auto-dismiss timing) and the widget console banner.
+- **Notifications** — usage thresholds and per-type native notification toggles.
 - **Behavior** — start with Windows, start mode, polling interval.
-- **Advanced** — notification thresholds, per-type notification toggles, log
-  files, and a full reset.
-- **About** — version, license, links.
+- **About** — version, links, logs, and a full reset.
 
 ## Three signals, never mixed
 
@@ -180,12 +191,13 @@ channels on purpose — they never share an element:
 | Signal | Where it shows |
 | --- | --- |
 | **Usage** | Pill rings / widget bars, and the tray icon color |
-| **Claude service status** | The status dot (from `status.claude.com`) |
-| **Claude Code activity** | Orange border + console banner |
+| **Service status** | The status dot (from `status.claude.com`) |
+| **Agent activity** | The slide-down pill panel + console banner |
 
 ## Tray icon
 
-The tray icon color follows the **higher** of your two usage windows:
+The tray icon color follows the **highest** usage window across every tracked
+provider:
 
 | Usage | Icon | Notification |
 | --- | :---: | --- |
@@ -198,9 +210,9 @@ The tray icon color follows the **higher** of your two usage windows:
 - **Left-click** the tray icon to show/hide the window.
 - **Right-click** for *Refresh now*, *Settings*, *Quit*.
 
-Hovering the icon shows a plain-text summary (`Session 47% · Weekly 28% · Resets
-in 2h 14m`). The thresholds and which notifications fire are configurable in
-Settings.
+Hovering the icon shows a plain-text summary, one line per provider
+(`Claude · 5h 25% (2h 14m)`). The thresholds and which notifications fire are
+configurable in Settings.
 
 ## Tech stack
 

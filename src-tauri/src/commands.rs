@@ -10,7 +10,9 @@ use crate::credentials;
 use crate::logging;
 use crate::setup_state::SetupState;
 use crate::status::StatusSnapshot;
-use crate::{ForceRefresh, SharedCodexUsage, SharedSettings, SharedStatus, SharedUsage};
+use crate::{
+    CodexStatusState, ForceRefresh, SharedCodexUsage, SharedSettings, SharedStatus, SharedUsage,
+};
 
 /// Marca distintiva de los hooks de BurnClaw dentro de settings.json.
 const HOOK_MARKER: &str = "127.0.0.1:9876";
@@ -36,6 +38,11 @@ pub fn get_current_status(state: State<'_, SharedStatus>) -> Option<StatusSnapsh
     state.lock().unwrap().clone()
 }
 
+#[tauri::command]
+pub fn get_current_codex_status(state: State<'_, CodexStatusState>) -> Option<StatusSnapshot> {
+    state.0.lock().unwrap().clone()
+}
+
 /// Estado de la cuenta de Codex para el wizard / Settings: si hay login
 /// ChatGPT utilizable, solo API key (sin cuota de plan), o nada.
 #[derive(Serialize)]
@@ -43,6 +50,14 @@ pub struct CodexCredentialsCheck {
     pub state: String, // "ok" | "api_key_only" | "missing"
     pub account_id: Option<String>,
     pub email: Option<String>,
+}
+
+/// Plan de Codex ("plus", "pro"…) consultando wham/usage (solo lectura, no
+/// consume cuota). Lo usa el wizard, donde el poller aún no corre y el plan no
+/// está en auth.json.
+#[tauri::command]
+pub async fn get_codex_plan() -> Option<String> {
+    codex::fetch_usage().await.ok().and_then(|u| u.plan_type)
 }
 
 #[tauri::command]

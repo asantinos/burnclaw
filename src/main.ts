@@ -299,6 +299,9 @@ function renderAll() {
     computeWindowWidth();
     applyShellSize();
     void resizeWindowToContent();
+    // Cambió el conjunto activo → el status combinado puede incluir/excluir
+    // ahora a un proveedor.
+    renderStatus();
   } else if (state === "expanded") {
     fitShellHeight();
   }
@@ -393,14 +396,75 @@ function applyBar(
 }
 
 // ---------- render: service status (pill dot + widget indicator) ----------
+// Indicador combinado de Claude + OpenAI. Verde si ambos OK; si alguno falla,
+// el color del peor, y el tooltip/texto dice cuál. Solo cuenta los proveedores
+// trackeados (los que tienen datos de uso).
 
-function renderStatus(snap: StatusSnapshot) {
-  const info = getStatusInfo(snap.indicator);
-  setDotClass(els.pillDot, info.cls);
-  els.pillDot.setAttribute("data-tooltip", snap.description || info.text);
-  setDotClass(els.statusDot, info.cls);
-  els.statusText.textContent = info.text;
-  els.statusIndicator.setAttribute("data-tooltip", snap.description || info.text);
+const STATUS_PAGE: Record<ProviderId, string> = {
+  claude: "https://status.claude.com/",
+  codex: "https://status.openai.com/",
+};
+const STATUS_RANK: Record<string, number> = {
+  none: 0,
+  maintenance: 1,
+  minor: 2,
+  major: 3,
+  critical: 4,
+};
+
+let claudeStatus: StatusSnapshot | null = null;
+let codexStatus: StatusSnapshot | null = null;
+// Página de status que abre el indicador del widget (la del proveedor con
+// problema, o Claude si todo va bien).
+let statusTargetUrl = STATUS_PAGE.claude;
+
+function renderStatus() {
+  const items: { name: string; provider: ProviderId; snap: StatusSnapshot }[] = [];
+  if (snapshots.claude && claudeStatus)
+    items.push({ name: "Claude", provider: "claude", snap: claudeStatus });
+  if (snapshots.codex && codexStatus)
+    items.push({ name: "Codex", provider: "codex", snap: codexStatus });
+  // Arranque: aún sin datos de uso pero ya tenemos el status de Claude.
+  if (items.length === 0 && claudeStatus)
+    items.push({ name: "Claude", provider: "claude", snap: claudeStatus });
+  if (items.length === 0) return;
+
+  const rank = (i: string) => STATUS_RANK[i] ?? 2;
+  let worst = items[0];
+  for (const it of items) if (rank(it.snap.indicator) > rank(worst.snap.indicator)) worst = it;
+
+  const allOk = items.every((it) => it.snap.indicator === "none");
+  const worstInfo = getStatusInfo(worst.snap.indicator);
+  const cls = allOk ? "ok" : worstInfo.cls;
+  setDotClass(els.pillDot, cls);
+  setDotClass(els.statusDot, cls);
+
+  // Texto del widget.
+  let text: string;
+  if (allOk) {
+    text = items.length > 1 ? "All operational" : worstInfo.text;
+  } else {
+    text = items
+      .filter((it) => it.snap.indicator !== "none")
+      .map((it) => `${it.name}: ${getStatusInfo(it.snap.indicator).text}`)
+      .join(" · ");
+  }
+  els.statusText.textContent = text;
+
+  // Tooltip: descripción por proveedor (con problema), o todo operativo.
+  const tip = allOk
+    ? items.length > 1
+      ? "All systems operational"
+      : items[0].snap.description || "Operational"
+    : items
+        .filter((it) => it.snap.indicator !== "none")
+        .map((it) => `${it.name} — ${it.snap.description || getStatusInfo(it.snap.indicator).text}`)
+        .join(" · ");
+  els.pillDot.setAttribute("data-tooltip", tip);
+  els.statusIndicator.setAttribute("data-tooltip", tip);
+
+  // El click del indicador abre la página del proveedor con problema (o Claude).
+  statusTargetUrl = STATUS_PAGE[allOk ? items[0].provider : worst.provider];
 }
 
 function renderError(message: string) {
@@ -745,7 +809,14 @@ function handleClaudeEvent(evt: any) {
 
 listen<UsageSnapshot>("usage-updated", (e) => renderUsage(e.payload));
 listen<CodexUsageSnapshot>("codex-usage-updated", (e) => renderCodexUsage(e.payload));
-listen<StatusSnapshot>("status-updated", (e) => renderStatus(e.payload));
+listen<StatusSnapshot>("status-updated", (e) => {
+  claudeStatus = e.payload;
+  renderStatus();
+});
+listen<StatusSnapshot>("codex-status-updated", (e) => {
+  codexStatus = e.payload;
+  renderStatus();
+});
 listen<string>("usage-error", (e) => renderError(e.payload));
 listen("claude-event", (e) => handleClaudeEvent(e.payload));
 listen("window-shown", () => resetCollapsed());
@@ -915,12 +986,11 @@ $("pill-notif-close").addEventListener("click", (e) => {
   setActivity("idle", activity.evt, activity.provider);
 });
 
-// El indicador de estado del widget abre la página de status de Anthropic.
+// El indicador de estado del widget abre la página de status del proveedor con
+// problema (o Claude si todo va bien).
 els.statusIndicator.addEventListener("click", (e) => {
   e.preventDefault();
-  openUrl("https://status.claude.com/").catch((err) =>
-    console.error("openUrl failed:", err),
-  );
+  openUrl(statusTargetUrl).catch((err) => console.error("openUrl failed:", err));
 });
 
 els.btnRefresh.addEventListener("click", (e) => {
@@ -985,7 +1055,10 @@ async function bootstrap() {
 
   try {
     const status = await invoke<StatusSnapshot | null>("get_current_status");
-    if (status) renderStatus(status);
+    if (status) claudeStatus = status;
+    const cStatus = await invoke<StatusSnapshot | null>("get_current_codex_status");
+    if (cStatus) codexStatus = cStatus;
+    renderStatus();
   } catch (e) {
     console.error("status fetch failed", e);
   }

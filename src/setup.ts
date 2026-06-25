@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { CLAUDE_ICON, CODEX_ICON } from "./icons";
 
 // ====================================================
 // STATE
@@ -37,12 +38,21 @@ async function refreshCredsState() {
   }
 }
 
+let codexPlan: string | null = null;
 async function refreshCodexState() {
   try {
     const check = await invoke<any>("check_codex_credentials");
     codexState = check.state;
   } catch {
     codexState = "missing";
+  }
+  // El plan no está en auth.json; se consulta una vez a wham/usage (read-only).
+  if (codexState === "ok" && codexPlan === null) {
+    try {
+      codexPlan = (await invoke<string | null>("get_codex_plan")) ?? null;
+    } catch {
+      /* sin red / sin plan */
+    }
   }
 }
 
@@ -83,17 +93,17 @@ function renderProviderSelect() {
   document.querySelectorAll("#provider-select .pref-select-option").forEach((o) => {
     o.classList.toggle("selected", (o as HTMLElement).dataset.value === prov);
   });
-  const hint = document.getElementById("provider-hint");
-  if (hint) {
-    const c = credsState === "ok" ? "Claude ✓" : "Claude not found";
-    const x =
-      codexState === "ok"
-        ? "Codex ✓"
-        : codexState === "api_key_only"
-          ? "Codex (API key only)"
-          : "Codex not found";
-    hint.textContent = `Detected: ${c} · ${x}`;
-  }
+  // "Detected" dentro de cada botón: ✓ en el proveedor que se detecta.
+  const mark = (provider: string, ok: boolean) => {
+    const el = document.querySelector(
+      `#provider-select .opt-detect[data-detect="${provider}"]`,
+    );
+    if (!el) return;
+    el.textContent = ok ? "detected" : "";
+    el.classList.toggle("ok", ok);
+  };
+  mark("claude", credsState === "ok");
+  mark("codex", codexState === "ok");
 }
 
 function renderSidebar() {
@@ -123,6 +133,25 @@ function renderContent() {
     ?.classList.add("active");
 }
 
+// Fila de conexión, estilo Settings → Providers: icono de marca + nombre/plan
+// arriba, y debajo el estado con el dot inline. `actions` opcional (botones).
+function connRow(icon: string, top: string, meta: string, actions = ""): string {
+  const provider = icon === CLAUDE_ICON ? "claude" : "codex";
+  return `
+    <div class="provider-row">
+      <span class="provider-mark" data-provider="${provider}">${icon}</span>
+      <div class="status-line">
+        <div class="status-line-header">
+          <div class="status-text">
+            ${top}
+            <div class="meta">${meta}</div>
+          </div>
+        </div>
+        ${actions ? `<div class="status-line-actions">${actions}</div>` : ""}
+      </div>
+    </div>`;
+}
+
 function renderCredsSection() {
   const container = document.getElementById("creds-section");
   if (!container) return;
@@ -130,66 +159,41 @@ function renderCredsSection() {
     container.innerHTML = "";
     return;
   }
-  let html = "";
+  const label = `<span class="provider-label">Claude</span>`;
+  let html: string;
 
   if (credsActionLoading) {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot checking"></span>
-          <div class="status-text">
-            Opening Claude Code login…
-            <div class="meta">Complete the login in your terminal, then come back here.</div>
-          </div>
-        </div>
-      </div>`;
+    html = connRow(
+      CLAUDE_ICON,
+      label,
+      `<span class="status-dot checking inline"></span>Opening login…`,
+    );
   } else if (credsState === "ok") {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot ok"></span>
-          <div class="status-text">
-            Connected — <strong>${userPlan}</strong> plan
-            <div class="meta">Managed by Claude Code.</div>
-          </div>
-        </div>
-      </div>`;
+    html = connRow(
+      CLAUDE_ICON,
+      `${label}<span class="plan-tag">${userPlan}</span>`,
+      `<span class="status-dot ok inline"></span>Connected · managed by Claude Code`,
+    );
   } else if (credsState === "missing") {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot danger"></span>
-          <div class="status-text">
-            Claude Code not signed in
-            <div class="meta">BurnClaw needs an authenticated Claude Code session to read usage.</div>
-          </div>
-        </div>
-        <div class="status-line-actions">
-          <button class="action-btn" onclick="runClaudeLogin()">Open Claude Code login</button>
-        </div>
-      </div>`;
+    html = connRow(
+      CLAUDE_ICON,
+      label,
+      `<span class="status-dot danger inline"></span>Not signed in`,
+      `<button class="action-btn" onclick="runClaudeLogin()">Open Claude Code login</button>`,
+    );
   } else if (credsState === "expired") {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot warn"></span>
-          <div class="status-text">
-            Token expired
-            <div class="meta">Run <code>claude login</code> again, or BurnClaw can try refreshing.</div>
-          </div>
-        </div>
-        <div class="status-line-actions">
-          <button class="action-btn" onclick="refreshToken()">Refresh token</button>
-        </div>
-      </div>`;
+    html = connRow(
+      CLAUDE_ICON,
+      label,
+      `<span class="status-dot warn inline"></span>Token expired`,
+      `<button class="action-btn" onclick="refreshToken()">Refresh token</button>`,
+    );
   } else {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot checking"></span>
-          <div class="status-text">Checking Claude Code…</div>
-        </div>
-      </div>`;
+    html = connRow(
+      CLAUDE_ICON,
+      label,
+      `<span class="status-dot checking inline"></span>Checking…`,
+    );
   }
   container.innerHTML = html;
 }
@@ -201,58 +205,35 @@ function renderCodexSection() {
     container.innerHTML = "";
     return;
   }
-  let html = "";
+  const label = `<span class="provider-label">Codex</span>`;
+  let html: string;
 
   if (codexActionLoading) {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot checking"></span>
-          <div class="status-text">
-            Opening Codex login…
-            <div class="meta">Complete the login in your terminal, then come back here.</div>
-          </div>
-        </div>
-      </div>`;
+    html = connRow(
+      CODEX_ICON,
+      label,
+      `<span class="status-dot checking inline"></span>Opening login…`,
+    );
   } else if (codexState === "ok") {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot ok"></span>
-          <div class="status-text">
-            Codex connected — ChatGPT plan
-            <div class="meta">Read-only usage check. Doesn't consume your quota.</div>
-          </div>
-        </div>
-      </div>`;
+    html = connRow(
+      CODEX_ICON,
+      `${label}${codexPlan ? `<span class="plan-tag">${codexPlan}</span>` : ""}`,
+      `<span class="status-dot ok inline"></span>Connected · read-only, no quota`,
+    );
   } else if (codexState === "api_key_only") {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot warn"></span>
-          <div class="status-text">
-            Codex signed in with an API key
-            <div class="meta">API-key usage has no plan limits to track. Sign in with ChatGPT to track Codex usage.</div>
-          </div>
-        </div>
-        <div class="status-line-actions">
-          <button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>
-        </div>
-      </div>`;
+    html = connRow(
+      CODEX_ICON,
+      label,
+      `<span class="status-dot warn inline"></span>API key only — no plan to track`,
+      `<button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>`,
+    );
   } else {
-    html = `
-      <div class="status-line">
-        <div class="status-line-header">
-          <span class="status-dot danger"></span>
-          <div class="status-text">
-            Codex not signed in
-            <div class="meta">BurnClaw needs a ChatGPT login in Codex CLI to read usage.</div>
-          </div>
-        </div>
-        <div class="status-line-actions">
-          <button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>
-        </div>
-      </div>`;
+    html = connRow(
+      CODEX_ICON,
+      label,
+      `<span class="status-dot danger inline"></span>Not signed in`,
+      `<button class="action-btn" onclick="runCodexLogin()">Open Codex login</button>`,
+    );
   }
   container.innerHTML = html;
 }
@@ -267,9 +248,8 @@ function renderHooksSection() {
     html = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot checking"></span>
           <div class="status-text">
-            ${verb} hooks…
+            <span class="status-dot checking inline"></span>${verb} hooks…
             <div class="meta">Writing to ~/.claude/settings.json</div>
           </div>
         </div>
@@ -278,10 +258,9 @@ function renderHooksSection() {
     html = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot ok"></span>
           <div class="status-text">
             <div class="status-text-row">
-              <span>Hooks installed</span>
+              <span><span class="status-dot ok inline"></span>Hooks installed</span>
               <code class="path-tag">~/.claude/settings.json</code>
             </div>
             <div class="meta">${hookCount} lifecycle events registered · restart Claude Code to apply</div>
@@ -295,9 +274,8 @@ function renderHooksSection() {
     html = `
       <div class="status-line">
         <div class="status-line-header">
-          <span class="status-dot"></span>
           <div class="status-text">
-            Hooks not configured
+            <span class="status-dot inline"></span>Hooks not configured
             <div class="meta">Existing hooks in your settings.json will be preserved (backup created).</div>
           </div>
         </div>
@@ -590,4 +568,15 @@ async function init() {
   renderAll();
 }
 
+// Iconos de marca en el selector "What do you want to track?".
+function paintOptionIcons() {
+  document
+    .querySelectorAll<HTMLElement>('.opt-icon[data-icon="claude"]')
+    .forEach((e) => (e.innerHTML = CLAUDE_ICON));
+  document
+    .querySelectorAll<HTMLElement>('.opt-icon[data-icon="codex"]')
+    .forEach((e) => (e.innerHTML = CODEX_ICON));
+}
+
+paintOptionIcons();
 init();

@@ -68,11 +68,25 @@
               <div class="welcome-providers">
                 <div class="welcome-providers-label">What do you want to track?</div>
                 <div class="pref-select" id="provider-select">
-                  <div class="pref-select-option" data-value="claude">Claude</div>
-                  <div class="pref-select-option" data-value="codex">Codex</div>
-                  <div class="pref-select-option selected" data-value="both">Both</div>
+                  <div class="pref-select-option" data-value="claude">
+                    <span class="opt-main">
+                      <span class="opt-icon" data-icon="claude"></span>Claude
+                    </span>
+                    <span class="opt-detect" data-detect="claude"></span>
+                  </div>
+                  <div class="pref-select-option" data-value="codex">
+                    <span class="opt-main">
+                      <span class="opt-icon" data-icon="codex"></span>Codex
+                    </span>
+                    <span class="opt-detect" data-detect="codex"></span>
+                  </div>
+                  <div class="pref-select-option selected" data-value="both">
+                    <span class="opt-main">
+                      <span class="opt-icon" data-icon="claude"></span><span class="opt-icon" data-icon="codex"></span>Both
+                    </span>
+                    <span class="opt-detect"></span>
+                  </div>
                 </div>
-                <div class="welcome-providers-hint" id="provider-hint">Detecting…</div>
               </div>
             </div>
           </div>

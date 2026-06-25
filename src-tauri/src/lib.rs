@@ -25,6 +25,11 @@ pub type SharedUsage = Arc<Mutex<Option<UsageSnapshot>>>;
 /// está activo).
 pub type SharedCodexUsage = Arc<Mutex<Option<CodexUsageSnapshot>>>;
 pub type SharedStatus = Arc<Mutex<Option<StatusSnapshot>>>;
+/// Estado del servicio de OpenAI (status.openai.com), para Codex. Comparte el
+/// tipo interno con `SharedStatus`, así que se envuelve en un newtype: Tauri
+/// indexa el estado gestionado por tipo y dos alias del mismo tipo colisionan.
+pub type SharedCodexStatus = Arc<Mutex<Option<StatusSnapshot>>>;
+pub struct CodexStatusState(pub SharedCodexStatus);
 pub type ForceRefresh = Arc<Notify>;
 pub type SharedNotificationState = Arc<Mutex<NotificationState>>;
 /// Última posición (top-left, physical px) de la ventana al ocultarla, para
@@ -85,12 +90,14 @@ pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
         logging::app("codex usage poller not started (untracked or no auth)");
     }
 
-    // Poller de status — no necesita credenciales.
+    // Poller de status — no necesita credenciales. Pollea Claude siempre y
+    // OpenAI (Codex) si hay auth de Codex.
     let status_handle = app.clone();
     let status = app.state::<SharedStatus>().inner().clone();
+    let codex_status = app.state::<CodexStatusState>().inner().0.clone();
     let status_settings = settings.clone();
     tauri::async_runtime::spawn(async move {
-        poller::run_status(status_handle, status, status_settings).await;
+        poller::run_status(status_handle, status, codex_status, status_settings).await;
     });
 
     // Servidor de hooks de Claude Code.
@@ -173,6 +180,7 @@ pub fn run() {
     let usage_state: SharedUsage = Arc::new(Mutex::new(None));
     let codex_usage_state: SharedCodexUsage = Arc::new(Mutex::new(None));
     let status_state: SharedStatus = Arc::new(Mutex::new(None));
+    let codex_status_state = CodexStatusState(Arc::new(Mutex::new(None)));
     let force_refresh: ForceRefresh = Arc::new(Notify::new());
     let notification_state: SharedNotificationState =
         Arc::new(Mutex::new(NotificationState::new()));
@@ -185,6 +193,7 @@ pub fn run() {
         .manage(usage_state)
         .manage(codex_usage_state)
         .manage(status_state)
+        .manage(codex_status_state)
         .manage(force_refresh)
         .manage(notification_state)
         .manage(last_window_pos)
@@ -193,7 +202,9 @@ pub fn run() {
             commands::get_current_usage,
             commands::get_current_codex_usage,
             commands::check_codex_credentials,
+            commands::get_codex_plan,
             commands::get_current_status,
+            commands::get_current_codex_status,
             commands::resize_shell_window,
             commands::cursor_position,
             commands::force_refresh,

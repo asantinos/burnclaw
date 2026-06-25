@@ -15,7 +15,7 @@
   --accent-hover: #b86a4f;
   --accent-subtle: rgba(204, 120, 92, 0.08);
 
-  --ok: #4a7c59;
+  --ok: #4ade80;
   --warn: #c4923a;
   --danger: #b04848;
 
@@ -108,6 +108,11 @@ body {
   font-weight: 500;
   color: var(--text-primary);
   letter-spacing: -0.01em;
+  line-height: 1;
+  /* El mascot es top-heavy (llamas arriba), su masa queda baja: se baja el
+     texto un par de px para que alinee con el cuerpo del bicho. */
+  position: relative;
+  top: 3px;
 }
 
 .sidebar-steps {
@@ -294,10 +299,10 @@ body {
 }
 .welcome-tagline {
   font-family: var(--font-serif);
-  font-size: 15px;
+  font-size: 13px;
   color: var(--text-secondary);
-  max-width: 360px;
-  line-height: 1.55;
+  max-width: 340px;
+  line-height: 1.5;
   margin-bottom: 22px;
   font-weight: 400;
 }
@@ -348,7 +353,67 @@ body {
   margin-top: 6px;
 }
 .status-line-actions {
-  padding-left: 18px;
+  padding-left: 0;
+}
+
+/* Conexión estilo Settings → Providers: icono de marca + nombre/plan arriba y
+   estado (dot inline) debajo. */
+.provider-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 0;
+}
+.provider-row .status-line {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border-bottom: none;
+}
+.provider-row .status-line-actions {
+  padding-left: 0;
+}
+#codex-section:not(:empty) {
+  border-top: 1px solid var(--border);
+}
+.provider-mark {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+.provider-mark svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.provider-mark[data-provider="claude"] svg {
+  width: 24px;
+  height: 24px;
+}
+.provider-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.plan-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+}
+.status-dot.inline {
+  width: 7px;
+  height: 7px;
+  margin-top: 0;
+  margin-right: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  display: inline-block;
 }
 
 .status-dot {
@@ -410,40 +475,41 @@ body {
   white-space: nowrap;
 }
 
-/* Inline action buttons */
+/* Inline action buttons — mismo estilo sutil/pequeño que en Settings. */
 .action-btn {
-  background: var(--text-primary);
-  color: var(--bg);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  padding: 4px 10px;
+  border-radius: 5px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 150ms ease;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .action-btn:hover {
-  background: #2a2520;
-}
-.action-btn.subtle {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border-strong);
-}
-.action-btn.subtle:hover {
   background: var(--surface-subtle);
   border-color: var(--text-tertiary);
+}
+.action-btn.subtle {
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.action-btn.subtle:hover {
+  background: var(--border);
+  color: var(--text-primary);
 }
 .action-btn.danger {
   background: transparent;
   color: var(--danger);
-  border: 1px solid rgba(176, 72, 72, 0.3);
+  border-color: rgba(176, 72, 72, 0.28);
 }
 .action-btn.danger:hover {
   background: rgba(176, 72, 72, 0.06);
@@ -554,6 +620,77 @@ body {
 .pref-select-option.selected {
   background: var(--text-primary);
   color: var(--bg);
+}
+
+/* Selector de proveedor: segmentado (como el resto) + icono de marca, y al
+   seleccionar un tinte suave del color de la marca (texto oscuro). */
+#provider-select .pref-select-option {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 11px;
+}
+#provider-select .opt-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#provider-select .opt-icon {
+  display: inline-flex;
+  align-items: center;
+}
+#provider-select .opt-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+#provider-select .opt-icon[data-icon="claude"] svg {
+  width: 15px;
+  height: 15px;
+}
+/* "detected" (texto) debajo del nombre del proveedor instalado. min-height
+   reserva la línea aunque esté vacío, para que las 3 opciones midan igual. */
+#provider-select .opt-detect {
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--ok);
+  letter-spacing: 0.03em;
+  line-height: 10px;
+  min-height: 10px;
+}
+/* "detected" como pill: chip redondeado con fondo verde suave. */
+#provider-select .opt-detect:not(:empty) {
+  background: rgba(74, 222, 128, 0.16);
+  color: #2f9e54;
+  padding: 1px 7px;
+  border-radius: 999px;
+  line-height: 1.5;
+  min-height: 0;
+}
+/* "Both" no tiene línea "detected": se centra vertical para cuadrar con el
+   centro de las opciones de dos líneas. */
+#provider-select .pref-select-option[data-value="both"] {
+  justify-content: center;
+}
+#provider-select .pref-select-option[data-value="both"] .opt-detect {
+  display: none;
+}
+#provider-select .pref-select-option.selected {
+  color: var(--text-primary);
+}
+#provider-select .pref-select-option[data-value="claude"].selected {
+  background: rgba(217, 119, 6, 0.15);
+}
+#provider-select .pref-select-option[data-value="codex"].selected {
+  background: rgba(91, 107, 122, 0.18);
+}
+#provider-select .pref-select-option[data-value="both"].selected {
+  background: linear-gradient(
+    90deg,
+    rgba(217, 119, 6, 0.13),
+    rgba(91, 107, 122, 0.16)
+  );
 }
 
 .pref-trade-off {

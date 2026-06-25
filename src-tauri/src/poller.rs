@@ -8,8 +8,8 @@ use crate::notifications;
 use crate::status;
 use crate::tray;
 use crate::{
-    ForceRefresh, SharedCodexUsage, SharedNotificationState, SharedSettings, SharedStatus,
-    SharedUsage,
+    ForceRefresh, SharedCodexStatus, SharedCodexUsage, SharedNotificationState, SharedSettings,
+    SharedStatus, SharedUsage,
 };
 
 const STATUS_INTERVAL_SECS: u64 = 300;
@@ -100,10 +100,15 @@ pub async fn run_codex(app: AppHandle, state: SharedCodexUsage, settings: Shared
     }
 }
 
-pub async fn run_status(app: AppHandle, state: SharedStatus, settings: SharedSettings) {
+pub async fn run_status(
+    app: AppHandle,
+    state: SharedStatus,
+    codex_state: SharedCodexStatus,
+    settings: SharedSettings,
+) {
     let mut last_indicator: Option<String> = None;
     loop {
-        match status::fetch_status().await {
+        match status::fetch_status(status::CLAUDE_STATUS_URL).await {
             Ok(snap) => {
                 // Notificación de incidente: al pasar a un estado problemático
                 // (indicator != "none") por primera vez, si el toggle está on.
@@ -123,9 +128,27 @@ pub async fn run_status(app: AppHandle, state: SharedStatus, settings: SharedSet
                 let _ = app.emit("status-updated", snap);
             }
             Err(e) => {
-                logging::app(&format!("fetch_status failed: {}", e));
+                logging::app(&format!("fetch_status (claude) failed: {}", e));
             }
         }
+
+        // Status de OpenAI (Codex) — solo si se trackea Codex. Mira los
+        // componentes "Codex", no el indicador global de toda la página.
+        if codex::auth_exists() {
+            match status::fetch_codex_status().await {
+                Ok(snap) => {
+                    {
+                        let mut guard = codex_state.lock().unwrap();
+                        *guard = Some(snap.clone());
+                    }
+                    let _ = app.emit("codex-status-updated", snap);
+                }
+                Err(e) => {
+                    logging::app(&format!("fetch_status (openai) failed: {}", e));
+                }
+            }
+        }
+
         tokio::time::sleep(Duration::from_secs(STATUS_INTERVAL_SECS)).await;
     }
 }

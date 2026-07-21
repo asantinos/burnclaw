@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-1a1814?style=flat-square" alt="Windows 10 / 11" />
-  <img src="https://img.shields.io/badge/version-2.0.0-1a1814?style=flat-square" alt="Version 2.0.0" />
+  <img src="https://img.shields.io/badge/version-2.0.1-1a1814?style=flat-square" alt="Version 2.0.1" />
   <img src="https://img.shields.io/badge/license-MIT-1a1814?style=flat-square" alt="MIT" />
   <img src="https://img.shields.io/badge/built%20with-Tauri%202-1a1814?style=flat-square" alt="Tauri 2" />
 </p>
@@ -229,12 +229,14 @@ If every check passes, GitHub builds the NSIS installer and creates a **draft
 release** with generated release notes and the `.exe` attached. Review the draft
 in GitHub and select **Publish release** when it is ready.
 
-For example, after changing every project version to `2.0.1` and committing it:
+After updating every project version and committing it, the tag can be derived
+from `package.json` to avoid entering a different version manually:
 
 ```powershell
-git tag v2.0.1
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+git tag "v$version"
 git push origin main
-git push origin v2.0.1
+git push origin "v$version"
 ```
 
 The workflow uses GitHub's built-in token and does not require a custom secret.

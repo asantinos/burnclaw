@@ -52,6 +52,22 @@ jobs:
             throw "Release versions do not match: $summary"
           }
 
+          $visibleVersions = @{
+            readme = @{ path = "README.md"; text = "version-$tagVersion-" }
+            settingsSidebar = @{ path = "settings.html"; text = "<strong>v$tagVersion</strong>" }
+            settingsAbout = @{ path = "settings.html"; text = "Version $tagVersion" }
+            setupSidebar = @{ path = "setup.html"; text = "<strong>v$tagVersion</strong>" }
+          }
+
+          $missingVisibleVersions = $visibleVersions.GetEnumerator() | Where-Object {
+            $content = Get-Content $_.Value.path -Raw
+            -not $content.Contains($_.Value.text)
+          }
+          if ($missingVisibleVersions) {
+            $missing = ($missingVisibleVersions.Name | Sort-Object) -join ', '
+            throw "Visible app versions do not match v$tagVersion: $missing"
+          }
+
           "Validated BurnClaw $tagVersion"
 
       - name: Install frontend dependencies

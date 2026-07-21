@@ -1,114 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BurnClaw</title>
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
-    <!-- Una sola ventana. #shell se morfea entre pill y widget: cambia
-         tamaño + border-radius con transición CSS; los dos contenidos
-         hacen crossfade. La ventana del SO nunca se redimensiona. -->
-    <div id="shell" class="shell collapsed">
-      <!-- ----- contenido PILL ----- -->
-      <div class="pill-content" id="pill-content">
-        <span
-          class="status-dot"
-          id="pill-dot"
-          data-tooltip="Loading..."
-          data-tooltip-pos="below"
-        ></span>
-        <!-- Un grupo de rings por proveedor activo, generado en main.ts. -->
-        <div class="pill-providers" id="pill-providers"></div>
-      </div>
+    <main id="notch" class="notch compact" aria-label="BurnClaw">
+      <button id="compact-view" class="compact-view" type="button" aria-label="Open BurnClaw">
+        <span id="compact-idle" class="compact-idle"></span>
+        <span id="compact-activity" class="compact-activity" hidden></span>
+        <span id="compact-session-count" class="compact-session-count" hidden></span>
+      </button>
 
-      <!-- ----- contenido WIDGET ----- -->
-      <div class="widget-content" id="widget-content">
-        <header class="header">
-          <div class="header-left">
-            <img id="mascot" src="/mascot.png" alt="" />
-            <span class="product-name">BurnClaw</span>
-          </div>
-          <div class="header-right">
-            <div
-              class="status-indicator"
-              id="status-indicator"
-              data-tooltip="Loading…"
-              data-tooltip-pos="below"
-            >
-              <span class="status-dot" id="status-dot"></span>
-              <span id="status-text">—</span>
-            </div>
-            <button
-              class="close-btn"
-              id="btn-close"
-              data-tooltip="Collapse to pill"
-              data-tooltip-pos="below"
-              data-tooltip-align="end"
-              aria-label="Collapse"
-            >
-              <svg viewBox="0 0 16 16" width="14" height="14">
-                <path
-                  d="M4 4L12 12 M12 4L4 12"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
+      <section id="expanded-view" class="expanded-view" aria-hidden="true">
+        <header class="notch-header">
+          <div id="usage-strip" class="usage-strip"></div>
+          <div class="header-actions">
+            <button id="btn-refresh" class="icon-btn" type="button" aria-label="Refresh usage" title="Refresh usage">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.3788 6.20698C15.1885 5.25459 13.7434 4.5 12 4.5C7.85787 4.5 4.5 7.85786 4.5 12C4.5 16.1421 7.85787 19.5 12 19.5C15.2549 19.5 18.028 17.4254 19.0646 14.5256C19.2505 14.0055 19.775 13.6568 20.3153 13.7713L21.2935 13.9787C21.8338 14.0932 22.1836 14.6262 22.0179 15.1531C20.6787 19.4112 16.7016 22.5 12 22.5C6.20101 22.5 1.5 17.799 1.5 12C1.5 6.20101 6.20101 1.5 12 1.5C14.7835 1.5 16.9516 2.76847 18.5112 4.0746L20.2929 2.29289C20.5789 2.00689 21.009 1.92134 21.3827 2.07612C21.7564 2.2309 22 2.59554 22 3V8.5C22 9.05228 21.5523 9.5 21 9.5H15.5C15.0956 9.5 14.7309 9.25636 14.5761 8.88268C14.4214 8.50901 14.5069 8.07889 14.7929 7.79289L16.3788 6.20698Z"/></svg>
+            </button>
+            <button id="btn-settings" class="icon-btn" type="button" aria-label="Open settings" title="Settings">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.7848 0.449982C13.8239 0.449982 14.7167 1.16546 14.9122 2.15495L14.9991 2.59495C15.3408 4.32442 17.1859 5.35722 18.9016 4.7794L19.3383 4.63233C20.3199 4.30175 21.4054 4.69358 21.9249 5.56605L22.7097 6.88386C23.2293 7.75636 23.0365 8.86366 22.2504 9.52253L21.9008 9.81555C20.5267 10.9672 20.5267 13.0328 21.9008 14.1844L22.2504 14.4774C23.0365 15.1363 23.2293 16.2436 22.7097 17.1161L21.925 18.4339C21.4054 19.3064 20.3199 19.6982 19.3382 19.3676L18.9017 19.2205C17.1859 18.6426 15.3408 19.6754 14.9991 21.405L14.9122 21.845C14.7167 22.8345 13.8239 23.55 12.7848 23.55H11.2152C10.1761 23.55 9.28331 22.8345 9.08781 21.8451L9.00082 21.4048C8.65909 19.6754 6.81395 18.6426 5.09822 19.2205L4.66179 19.3675C3.68016 19.6982 2.59465 19.3063 2.07505 18.4338L1.2903 17.1161C0.770719 16.2436 0.963446 15.1363 1.74956 14.4774L2.09922 14.1844C3.47324 13.0327 3.47324 10.9672 2.09922 9.8156L1.74956 9.52254C0.963446 8.86366 0.77072 7.75638 1.2903 6.8839L2.07508 5.56608C2.59466 4.69359 3.68014 4.30176 4.66176 4.63236L5.09831 4.77939C6.81401 5.35722 8.65909 4.32449 9.00082 2.59506L9.0878 2.15487C9.28331 1.16542 10.176 0.449982 11.2152 0.449982H12.7848ZM12 15.3C13.8225 15.3 15.3 13.8225 15.3 12C15.3 10.1774 13.8225 8.69998 12 8.69998C10.1774 8.69998 8.69997 10.1774 8.69997 12C8.69997 13.8225 10.1774 15.3 12 15.3Z"/></svg>
+            </button>
+            <button id="btn-collapse" class="icon-btn" type="button" aria-label="Collapse" title="Collapse">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.29297 6.70711C3.68349 6.31658 4.31666 6.31658 4.70718 6.70711L12.0001 14L19.293 6.70711C19.6835 6.31658 20.3167 6.31658 20.7072 6.70711L21.4143 7.41421C21.8048 7.80474 21.8048 8.4379 21.4143 8.82843L13.0607 17.182C12.4749 17.7678 11.5252 17.7678 10.9394 17.182L2.58586 8.82843C2.19534 8.4379 2.19534 7.80474 2.58586 7.41422L3.29297 6.70711Z"/></svg>
             </button>
           </div>
         </header>
 
-        <hr class="sep" />
-
-        <div class="console-banner" id="console-banner" style="display: none">
-          <span class="banner-text"></span>
+        <div class="section-label">
+          <span>Sessions</span>
+          <span id="session-summary"></span>
         </div>
-
-        <!-- Un bloque por proveedor activo (cabecera + Session 5h + Weekly 7d),
-             generado en main.ts. -->
-        <div class="providers" id="providers"></div>
-
-        <footer class="footer">
-          <div class="footer-left">
-            <button
-              class="refresh-btn"
-              id="btn-refresh"
-              data-tooltip="Refresh now"
-              aria-label="Refresh now"
-            >
-              <svg viewBox="0 0 24 24" fill="none" width="11" height="11">
-                <path
-                  d="M3 12C3 16.9706 7.02944 21 12 21C14.3051 21 16.4077 20.1334 18 18.7083L21 16M21 12C21 7.02944 16.9706 3 12 3C9.69494 3 7.59227 3.86656 6 5.29168L3 8M21 21V16M21 16H16M3 3V8M3 8H8"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </button>
-            <span id="updated-ago">—</span>
-          </div>
-        </footer>
-      </div>
-    </div>
-
-    <!-- Panel de actividad: se desliza bajo la pill (estado colapsado) al
-         recibir eventos de Claude/Codex. Color por proveedor. -->
-    <div id="pill-notif" class="pill-notif">
-      <span class="pill-notif-icon"></span>
-      <span class="pill-notif-text"></span>
-      <button class="pill-notif-close" id="pill-notif-close" aria-label="Dismiss">
-        <svg viewBox="0 0 16 16" width="11" height="11">
-          <path
-            d="M4 4L12 12 M12 4L4 12"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-          />
-        </svg>
-      </button>
-    </div>
+        <div id="sessions-list" class="sessions-list"></div>
+        <div id="empty-sessions" class="empty-sessions">No active sessions</div>
+        <button id="show-all" class="show-all" type="button" hidden></button>
+      </section>
+    </main>
   </body>
 </html>

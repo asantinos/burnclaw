@@ -740,7 +740,7 @@ pub fn check_hooks_status() -> Result<HooksCheck, String> {
         })
         .unwrap_or(0);
     Ok(HooksCheck {
-        installed: count > 0,
+        installed: count > 0 && claude_hooks_are_current().unwrap_or(false),
         hook_count: count,
     })
 }
@@ -896,7 +896,30 @@ const CODEX_HOOK_EVENTS: &[(&str, bool)] = &[
     ("SubagentStop", false),
 ];
 
+fn hook_entry_uses_command(
+    entry: &serde_json::Value,
+    expected_command: &str,
+    require_windows_command: bool,
+) -> bool {
+    entry
+        .get("hooks")
+        .and_then(|value| value.as_array())
+        .is_some_and(|handlers| {
+            handlers.iter().any(|handler| {
+                let command_matches = handler.get("command").and_then(|value| value.as_str())
+                    == Some(expected_command);
+                let windows_matches = !require_windows_command
+                    || handler
+                        .get("commandWindows")
+                        .and_then(|value| value.as_str())
+                        == Some(expected_command);
+                command_matches && windows_matches
+            })
+        })
+}
+
 fn claude_hooks_are_current() -> Result<bool, String> {
+    let expected_command = claude_hook_command()?;
     let path = settings_path()?;
     if !path.exists() {
         return Ok(false);
@@ -913,14 +936,15 @@ fn claude_hooks_are_current() -> Result<bool, String> {
             .and_then(|value| value.as_array())
             .is_some_and(|entries| {
                 entries.iter().any(|entry| {
-                    serde_json::to_string(entry)
-                        .is_ok_and(|value| value.contains(CLAUDE_HOOK_MARKER))
+                    is_burnclaw_claude_hook(entry)
+                        && hook_entry_uses_command(entry, &expected_command, false)
                 })
             })
     }))
 }
 
 fn codex_hooks_are_current() -> Result<bool, String> {
+    let expected_command = codex_hook_command()?;
     let path = codex_hooks_path()?;
     if !path.exists() {
         return Ok(false);
@@ -937,8 +961,8 @@ fn codex_hooks_are_current() -> Result<bool, String> {
             .and_then(|value| value.as_array())
             .is_some_and(|entries| {
                 entries.iter().any(|entry| {
-                    serde_json::to_string(entry)
-                        .is_ok_and(|value| value.contains(CODEX_HOOK_MARKER))
+                    is_burnclaw_codex_hook(entry)
+                        && hook_entry_uses_command(entry, &expected_command, true)
                 })
             })
     }))
@@ -983,7 +1007,7 @@ pub fn check_codex_hooks_status() -> Result<HooksCheck, String> {
         })
         .unwrap_or(0);
     Ok(HooksCheck {
-        installed: count > 0,
+        installed: count > 0 && codex_hooks_are_current().unwrap_or(false),
         hook_count: count,
     })
 }
@@ -1296,4 +1320,38 @@ pub fn open_logs_folder() -> Result<(), String> {
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hook_command_check_rejects_an_old_executable_path() {
+        let current = r#""C:\Program Files\BurnClaw\burnclaw.exe" --codex-hook"#;
+        let stale = r#""C:\work\burnclaw\target\debug\burnclaw.exe" --codex-hook"#;
+        let entry = serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": stale,
+                "commandWindows": stale
+            }]
+        });
+
+        assert!(!hook_entry_uses_command(&entry, current, true));
+    }
+
+    #[test]
+    fn hook_command_check_accepts_the_current_windows_command() {
+        let current = r#""C:\Program Files\BurnClaw\burnclaw.exe" --codex-hook"#;
+        let entry = serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": current,
+                "commandWindows": current
+            }]
+        });
+
+        assert!(hook_entry_uses_command(&entry, current, true));
+    }
 }

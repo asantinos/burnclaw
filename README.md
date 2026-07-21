@@ -1,224 +1,233 @@
 <p align="center">
-  <img src="public/mascot.png" width="116" alt="BurnClaw" />
+  <img src="public/mascot.png" width="132" alt="BurnClaw mascot" />
 </p>
 
-<h1 align="center">BurnClaw</h1>
+<h1 align="center">BurnClaw 2.0</h1>
 
 <p align="center">
-  Your Claude and Codex usage, live in the Windows system tray.
+  A compact Windows notch for Claude Code and Codex usage, service health and live sessions.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-1a1814?style=flat-square" alt="Windows 10 / 11" />
+  <img src="https://img.shields.io/badge/version-2.0.0-1a1814?style=flat-square" alt="Version 2.0.0" />
   <img src="https://img.shields.io/badge/license-MIT-1a1814?style=flat-square" alt="MIT" />
   <img src="https://img.shields.io/badge/built%20with-Tauri%202-1a1814?style=flat-square" alt="Tauri 2" />
 </p>
 
----
+BurnClaw lives at the top of the desktop and keeps the information that normally
+requires several terminal commands or browser tabs in one small surface. Track
+Claude Code, Codex, or both.
 
-BurnClaw is a tiny desktop widget that lives in your Windows tray and shows how
-much of your **Claude** and **OpenAI Codex** plans you've used — the rolling
-5-hour window and the weekly window for each — read straight from their APIs. A
-quick glance, no terminal, no browser tab. Track one provider or both.
+<p align="center">
+  <img src="docs/notch-compact.png" width="560" alt="BurnClaw compact notch showing Claude and Codex usage" />
+</p>
 
-It also reflects **agent activity** in real time: when Claude Code or Codex is
-working, finishes, or needs your input, a small notification slides down under
-the pill (orange for Claude, slate for Codex) and you get a native notification.
+## What it does
 
-> [!NOTE]
-> BurnClaw started as a personal project. It's published so anyone can use it,
-> but it stays Windows-only and relies on unofficial endpoints — see
-> [How it works](#how-it-works) before you depend on it.
+- Shows current usage and the remaining time until each limit resets.
+  - **Claude:** rolling 5-hour and 7-day limits.
+  - **Codex:** the current 7-day limit. BurnClaw retains compatibility with a
+    shorter window if OpenAI exposes one again.
+- Checks Claude and Codex service health independently.
+- Detects local Claude Code and Codex sessions through optional lifecycle hooks.
+- Uses simple activity labels such as **Working**, **Editing** and **Waiting**.
+- Surfaces questions and approval requests and lets you respond from the
+  expanded notch when the provider hook supports it.
+- Sends configurable Windows notifications for usage, finished tasks, requests
+  that need attention and service incidents.
+- Runs from the system tray and can start automatically with Windows.
+- Auto-hides the compact notch towards the top edge. Hover near it to reveal it,
+  or use the pin to keep it visible.
 
-## Contents
-
-- [States](#states)
-- [How it works](#how-it-works)
-- [Requirements](#requirements)
-- [Install](#install)
-- [First run](#first-run)
-- [Activity](#activity)
-- [Settings](#settings)
-- [Three signals, never mixed](#three-signals-never-mixed)
-- [Tray icon](#tray-icon)
-- [Tech stack](#tech-stack)
-- [License](#license)
-
-## States
-
-BurnClaw is a single window that morphs between two states. Click the pill to
-expand it; click the **✕** to collapse it back.
-
-<!-- capture: the collapsed pill — status dot + one concentric dual-ring per provider (brand icon centered) -->
-<!-- capture: the expanded widget — a block per provider (icon, name, plan) with session/weekly bars -->
-
-| Pill (collapsed) | Widget (expanded) |
-| :---: | :---: |
-| <img src="docs/pill.png" alt="Pill state" /> | <img src="docs/widget.png" alt="Widget state" /> |
-
-The **pill** shows a status dot plus one ring per tracked provider — two
-concentric arcs, the 5-hour window outside and the 7-day window inside, with the
-provider's icon in the centre. The **widget** breaks the same numbers out per
-provider with progress bars, reset countdowns, a `DOMINANT` tag on whichever
-window Anthropic is currently enforcing (Claude only), and a refresh button.
-
-## How it works
-
-**Claude.** Anthropic exposes a unified usage figure through the
-`anthropic-ratelimit-unified-*` response headers — but only when you
-authenticate as Claude Code. So BurnClaw **reuses the OAuth token Claude Code
-already stores** (`%USERPROFILE%\.claude\.credentials.json`). Once a minute it
-makes a minimal request to `api.anthropic.com` with the cheapest model
-(Haiku, `max_tokens: 1`) and reads the rate-limit headers off the response.
-
-**Codex.** BurnClaw reads the token Codex CLI stores
-(`%USERPROFILE%\.codex\auth.json`) and queries the same internal usage endpoint
-Codex clients use (`chatgpt.com/backend-api/wham/usage`). This is a **read-only**
-call — it returns your usage directly and costs **no quota**.
-
-The only network calls BurnClaw makes are to those usage endpoints and to
-`status.claude.com` (service status). No telemetry, no analytics, no servers of
-its own. It reads the credential files — it never modifies them.
-
-> [!WARNING]
-> **These are unofficial approaches.** Using Claude Code's OAuth token, or
-> Codex's internal usage endpoint, from a client that isn't the official CLI is
-> undocumented, ToS-gray territory. Either provider could block it at any time —
-> they've changed similar things before. If BurnClaw suddenly stops working with
-> an auth error, that's almost certainly why. For personal, low-frequency use
-> the risk is low, but it's a risk you're accepting.
+BurnClaw is not a replacement chat client. Interactive controls are limited to
+questions and permission requests received through the provider lifecycle hooks.
 
 ## Requirements
 
-- **Windows 10 or 11.**
-- **Claude Code and/or Codex CLI installed and logged in.** BurnClaw doesn't
-  care which plan you're on — it just needs the OAuth token that `claude login`
-  / `codex login` produces. Track either provider, or both.
+- Windows 10 or Windows 11.
+- Claude Code and/or Codex installed locally.
+- An authenticated CLI session for each provider you want to track:
+  - `claude login`
+  - `codex login` using a ChatGPT account
+
+Codex API-key authentication can run Codex, but it does not expose the ChatGPT
+plan quota that BurnClaw displays.
 
 ## Install
 
-Download the latest installer from the
-[**Releases**](https://github.com/asantinos/burnclaw/releases) page, run it,
-and BurnClaw appears in your tray. (Per-user install, no admin needed.)
+Download the latest `.exe` installer from
+[GitHub Releases](https://github.com/asantinos/burnclaw/releases). BurnClaw uses
+a per-user NSIS installer, so administrator access is not normally required.
 
-<details>
-<summary>Build from source</summary>
+On first launch, the setup wizard guides you through four steps:
 
-<br>
+1. **Welcome** - choose Claude, Codex or both.
+2. **Connection** - detect the local CLIs and sign in if needed.
+3. **Live activity** - optionally install the lifecycle hooks used for sessions,
+   questions and approvals.
+4. **Ready** - review the configuration and choose whether BurnClaw starts with
+   Windows.
 
-Requires [bun](https://bun.sh) and the
-[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for Windows
-(Rust + the WebView2 runtime, which ships with Windows 11).
+Usage and service health work without live activity. The hooks are only required
+for the session list, real-time activity and interactive requests.
 
-```bash
+<p align="center">
+  <img src="docs/wizard.png" width="820" alt="BurnClaw 2.0 setup wizard" />
+</p>
+
+## The notch
+
+The compact notch shows provider usage, service state, current activity and the
+number of active sessions without taking unnecessary desktop space.
+
+- Click it to open the session panel.
+- Use the upward chevron to return to the compact view.
+- Leave it unpinned to auto-hide after a short delay.
+- Move the cursor to the top-center edge of the screen to reveal it again.
+- Hover the compact notch and select the pin to keep it visible. The pin choice
+  persists between launches.
+
+While hidden, the BurnClaw window ignores pointer input so it does not block
+clicks in the application underneath it.
+
+| Pinned | Auto-hidden |
+| :---: | :---: |
+| <img src="docs/notch-pinned.png" alt="Pinned BurnClaw notch" /> | <img src="docs/notch-hidden.png" alt="BurnClaw notch tucked into the top edge" /> |
+
+<p align="center">
+  <img src="docs/notch-expanded.png" width="700" alt="BurnClaw expanded session panel" />
+</p>
+
+## Live sessions and interactive requests
+
+BurnClaw runs a small HTTP listener on `127.0.0.1:9876`. It is bound to localhost
+only and receives lifecycle events from the two local CLIs.
+
+<p align="center">
+  <img src="docs/live-session.png" width="700" alt="A live Claude Code session in BurnClaw" />
+</p>
+
+When a provider needs input, the same panel can show the question and its
+available answers without exposing the underlying technical hook details.
+
+<p align="center">
+  <img src="docs/interactive-request.png" width="700" alt="Answering an interactive agent request from BurnClaw" />
+</p>
+
+### Claude Code
+
+BurnClaw merges its entries into `%USERPROFILE%\.claude\settings.json` and
+preserves unrelated hooks. The integration covers session start/end, prompts,
+tool activity, subagents, notifications, questions and permission requests.
+
+### Codex
+
+BurnClaw installs its entries in `%USERPROFILE%\.codex\hooks.json`, preserves
+unrelated hooks and removes the older BurnClaw `notify` integration if present.
+The current bridge covers session lifecycle, prompts, tool activity, questions
+and permission requests.
+
+After installing or updating hooks, restart the corresponding CLI so it reloads
+its configuration. BurnClaw also repairs its own outdated hook entries after an
+app update without replacing hooks owned by other tools.
+
+When a session ends normally, BurnClaw removes it after the session-end event.
+It also monitors the owning CLI process and removes stale sessions if that
+process exits without delivering the final event.
+
+## Usage and service data
+
+### Claude
+
+BurnClaw reads the OAuth credentials already stored by Claude Code and makes a
+minimal request to Anthropic. The rate-limit response headers provide the 5-hour
+and weekly utilization and their reset times.
+
+### Codex
+
+BurnClaw reads the local Codex authentication file and requests plan usage from
+the same read-only ChatGPT usage endpoint used by Codex clients. The response is
+parsed defensively because the endpoint is not a public API.
+
+### Service health
+
+- Claude health comes from `status.claude.com`.
+- Codex health comes from the Codex-specific components on `status.openai.com`,
+  avoiding unrelated OpenAI incidents where possible.
+
+## Settings
+
+Open **Settings** from the tray menu to configure:
+
+- **Providers** - choose what BurnClaw tracks and inspect local account state.
+- **Live activity** - install, repair or remove Claude and Codex hooks.
+- **Notch** - choose which activity states open the temporary panel and how long
+  it remains visible.
+- **Notifications** - set warning/critical usage thresholds and Windows alerts.
+- **General** - start with Windows, initial compact/expanded view and refresh
+  interval.
+- **About** - open logs, report an issue or reset BurnClaw and run setup again.
+
+Settings are stored under the user's application configuration directory.
+Resetting BurnClaw does not delete Claude Code or Codex credentials.
+
+## Privacy and caveats
+
+- BurnClaw has no telemetry, analytics or hosted backend.
+- Credentials are read from the local CLI files and sent only to the relevant
+  provider endpoint as part of authenticated usage checks.
+- Lifecycle events stay on the local machine and are sent only to the localhost
+  listener.
+- Existing hook configuration is preserved and backed up before BurnClaw edits
+  it.
+
+The usage integrations rely on provider behavior that is not guaranteed as a
+stable public API. Anthropic or OpenAI may change credential formats, headers or
+usage endpoints. If tracking stops after a provider update, check BurnClaw logs
+and update to the latest release before signing in again.
+
+## Build from source
+
+You need:
+
+- [Bun](https://bun.sh/)
+- Rust with the MSVC target
+- Visual Studio Build Tools with **Desktop development with C++**
+- The [Tauri 2 Windows prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+```powershell
 git clone https://github.com/asantinos/burnclaw.git
 cd burnclaw
 bun install
 
-# run in development
+# Development
 bun run tauri dev
 
-# build a release installer (ends up in src-tauri/target/release/bundle/)
+# Production installer
 bun run tauri build
 ```
 
-</details>
+The NSIS installer is generated under:
 
-## First run
+```text
+src-tauri/target/release/bundle/nsis/
+```
 
-On first launch you'll get a short setup wizard:
+## Verification
 
-<!-- capture: the setup wizard — the Welcome step with the Claude / Codex / Both selector -->
-<img src="docs/wizard.png" alt="Setup wizard" />
+```powershell
+# TypeScript and production frontend
+bun run build
 
-1. **Welcome** — pick what to track: **Claude**, **Codex**, or **both**.
-   BurnClaw auto-detects which CLIs you have installed and preselects them.
-2. **Connection** — checks each chosen provider is signed in. If not, it can
-   open `claude login` / `codex login` for you.
-3. **Activity** — optionally wires up the integration (see below). You can skip
-   this and do it later.
-4. **Preferences** — start with Windows, polling interval.
-
-When you're done, the pill appears next to the tray.
-
-## Activity
-
-The optional part that makes the widget react in real time. BurnClaw runs a tiny
-HTTP server on `127.0.0.1:9876` (localhost only, never exposed to the network).
-
-- **Claude Code** pings it directly via hooks (session start, tool calls, input
-  requests, stop).
-- **Codex** calls it through its `notify` command — BurnClaw registers itself as
-  the notify handler and forwards the event.
-
-| Needs you | Finished | Widget |
-| :---: | :---: | :---: |
-| <img src="docs/activity-1.png" alt="Pill — Claude needs you" /> | <img src="docs/activity-2.png" alt="Pill — Claude finished" /> | <img src="docs/activity-widget.png" alt="Widget during agent activity" /> |
-
-When an agent is active, a notification slides down under the pill — **orange for
-Claude, slate for Codex** — with what it's doing ("working…", "needs you",
-"finished"). You choose which events trigger it, per provider, and how long it
-stays, in Settings. Expanded, the widget also shows a console banner, and you
-get a native OS notification when an agent finishes or is waiting for you.
-
-The wizard (or **Settings → Integration**) can install this for you: Claude's
-hooks merge into `~/.claude/settings.json`, Codex's handler into
-`~/.codex/config.toml` — both with a `.bak` backup, never clobbering what you
-already have. For the Claude hooks by hand, see [HOOKS_SETUP.md](HOOKS_SETUP.md).
-
-## Settings
-
-Right-click the tray icon → **Settings**. Everything applies live — no restart.
-
-<!-- capture: the Settings window — the Providers section showing both Claude and Codex connected -->
-<img src="docs/settings.png" alt="Settings window" />
-
-- **Providers** — connection status, plan and credential file for Claude and
-  Codex.
-- **Integration** — install/remove Claude Code hooks and the Codex notify
-  handler.
-- **Activity** — the slide-down pill panel (enable per provider, pick which
-  events, auto-dismiss timing) and the widget console banner.
-- **Notifications** — usage thresholds and per-type native notification toggles.
-- **Behavior** — start with Windows, start mode, polling interval.
-- **About** — version, links, logs, and a full reset.
-
-## Three signals, never mixed
-
-BurnClaw shows three independent things and keeps them on separate visual
-channels on purpose — they never share an element:
-
-| Signal | Where it shows |
-| --- | --- |
-| **Usage** | Pill rings / widget bars, and the tray icon color |
-| **Service status** | The status dot (from `status.claude.com`) |
-| **Agent activity** | The slide-down pill panel + console banner |
-
-## Tray icon
-
-The tray icon color follows the **highest** usage window across every tracked
-provider:
-
-| Usage | Icon | Notification |
-| --- | :---: | --- |
-| Starting up | <img src="src-tauri/icons/tray/idle@2x.png" width="22" alt="idle" /> | — |
-| 0–49% | <img src="src-tauri/icons/tray/ok@2x.png" width="22" alt="ok" /> | — |
-| 50–79% | <img src="src-tauri/icons/tray/warn@2x.png" width="22" alt="warn" /> | — |
-| 80–94% | <img src="src-tauri/icons/tray/orange@2x.png" width="22" alt="orange" /> | once, when crossed |
-| 95–100% | <img src="src-tauri/icons/tray/danger@2x.png" width="22" alt="danger" /> | once, when crossed |
-
-- **Left-click** the tray icon to show/hide the window.
-- **Right-click** for *Refresh now*, *Settings*, *Quit*.
-
-Hovering the icon shows a plain-text summary, one line per provider
-(`Claude · 5h 25% (2h 14m)`). The thresholds and which notifications fire are
-configurable in Settings.
+# Rust unit tests
+cargo test --manifest-path src-tauri/Cargo.toml
+```
 
 ## Tech stack
 
-Tauri 2 + Rust backend + vanilla TypeScript frontend, built with
-[bun](https://bun.sh). It was chosen over Electron deliberately: a tray widget
-that runs 24/7 should be measured in single-digit MB, not hundreds.
+BurnClaw uses Tauri 2, Rust and vanilla TypeScript. The small native shell keeps
+the always-running widget substantially lighter than an Electron application.
 
 ## License
 

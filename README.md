@@ -112,7 +112,7 @@ When a provider needs input, the same panel can show the question and its
 available answers without exposing the underlying technical hook details.
 
 <p align="center">
-  <img src="docs/interactive-request.png" width="700" alt="Answering an interactive agent request from BurnClaw" />
+  <img src="docs/interactive-request-expanded.png" width="700" alt="Answering an interactive agent request from BurnClaw" />
 </p>
 
 ### Claude Code

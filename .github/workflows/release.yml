@@ -65,7 +65,7 @@ jobs:
           }
           if ($missingVisibleVersions) {
             $missing = ($missingVisibleVersions.Name | Sort-Object) -join ', '
-            throw "Visible app versions do not match v$tagVersion: $missing"
+            throw "Visible app versions do not match v${tagVersion}: $missing"
           }
 
           "Validated BurnClaw $tagVersion"

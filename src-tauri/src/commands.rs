@@ -220,7 +220,7 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
     {
         use windows::Win32::Foundation::HWND;
         use windows::Win32::Graphics::Gdi::{
-            CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
+            CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
         };
         use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
 
@@ -233,8 +233,8 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
         // El HWND conserva siempre el ancho expandido para que el WebView no
         // haga un reflow horizontal al terminar el collapse. En compacto se
         // recorta a los 400 px centrales y los márgenes no bloquean clics.
-        // La región es deliberadamente rectangular: el border-radius visual
-        // queda en manos de CSS, que sí suaviza el contorno con antialiasing.
+        // El recorte nativo replica las esquinas inferiores de CSS. Dejar el
+        // HWND rectangular expone el fondo de WebView2 cuando pierde el foco.
         unsafe fn apply_notch_region(
             hwnd: HWND,
             window_width: i32,
@@ -243,6 +243,8 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
         ) -> Result<(), String> {
             let logical_height = window_height as f64 / scale;
             let compact = logical_height <= 30.5;
+            let logical_radius = if compact { 13.0 } else { 16.0 };
+            let radius = (logical_radius * scale).round().max(1.0) as i32;
             let horizontal_inset = if compact {
                 (((window_width as f64 / scale) - 400.0) * 0.5 * scale)
                     .round()
@@ -250,11 +252,15 @@ pub fn resize_shell_window(app: AppHandle, width: f64, height: f64) -> Result<()
             } else {
                 0
             };
-            let body = CreateRectRgn(
+            // Extender el round-rect por encima del HWND conserva rectas las
+            // esquinas superiores y recorta únicamente las inferiores.
+            let body = CreateRoundRectRgn(
                 horizontal_inset,
-                0,
-                window_width - horizontal_inset,
-                window_height,
+                -radius,
+                window_width - horizontal_inset + 1,
+                window_height + 1,
+                radius * 2,
+                radius * 2,
             );
             if body.0.is_null() {
                 delete_region(body);

@@ -54,11 +54,13 @@ button { font: inherit; }
   border-top: 0;
   border-radius: 0 0 13px 13px;
   box-shadow: none;
+  transform: translateY(0);
   transform-origin: top center;
   transition:
     width 300ms var(--ease-out),
     height 300ms var(--ease-out),
-    border-radius 300ms var(--ease-out);
+    border-radius 300ms var(--ease-out),
+    transform 260ms var(--ease-out);
   user-select: none;
 }
 
@@ -66,7 +68,10 @@ button { font: inherit; }
   width: 540px;
   border-radius: 0 0 16px 16px;
   box-shadow: none;
+  transform: translateY(0);
 }
+
+.notch.tucked { transform: translateY(-25px); }
 
 .compact-view {
   position: absolute;
@@ -76,7 +81,7 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 0 13px;
+  padding: 0 40px 0 13px;
   overflow: hidden;
   border: 0;
   color: inherit;
@@ -86,6 +91,39 @@ button { font: inherit; }
   transform: translateY(0);
   transition: opacity 90ms ease, transform 180ms var(--ease-out);
 }
+
+.compact-pin {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  right: 7px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  color: var(--dim);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(.82);
+  transition: color 140ms ease, background 140ms ease, opacity 140ms ease, transform 180ms var(--ease-out);
+}
+.compact-pin svg { width: 14px; height: 14px; fill: currentColor; }
+.notch.compact:not(.tucked):hover .compact-pin,
+.notch.compact.pinned .compact-pin,
+.compact-pin:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+.compact-pin:hover { color: var(--text); background: var(--surface-hover); }
+.notch.pinned .compact-pin { color: var(--blue); }
+.notch.tucked .compact-pin,
+.notch.expanded .compact-pin { opacity: 0; pointer-events: none; }
 
 .notch.expanded .compact-view {
   opacity: 0;

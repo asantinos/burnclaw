@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CLAUDE_ICON, CODEX_ICON } from "./icons";
 
 type ProviderId = "claude" | "codex";
@@ -87,14 +88,19 @@ const sessionsList = $("sessions-list");
 const emptySessions = $("empty-sessions");
 const sessionSummary = $("session-summary");
 const showAllButton = $("show-all") as HTMLButtonElement;
+const pinButton = $("btn-pin") as HTMLButtonElement;
 const isTauri = Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+const appWindow = isTauri ? getCurrentWindow() : null;
 
 const COMPACT_HEIGHT = 30;
+const COMPACT_WIDTH = 400;
 const EXPANDED_WIDTH = 540;
 // El HWND conserva siempre el ancho expandido. Solo el notch visible cambia
 // de ancho, evitando un reflow horizontal al terminar la minimización.
 const SHELL_WIDTH = EXPANDED_WIDTH;
 const MAX_EXPANDED_HEIGHT = 320;
+const PIN_STORAGE_KEY = "burnclaw:notch-pinned";
+const AUTO_TUCK_DELAY = 1_500;
 
 const usage: Record<ProviderId, ProviderUsage | null> = {
   claude: null,
@@ -115,6 +121,14 @@ let selectedSessionId: string | null = null;
 let showingAllSessions = false;
 let resizeTimer: number | null = null;
 let codexIconInstance = 0;
+let isPinned = window.localStorage.getItem(PIN_STORAGE_KEY) === "true";
+let isTucked = false;
+let tuckTimer: number | null = null;
+let clickThroughTimer: number | null = null;
+let cursorIgnored = false;
+let reentryPoll: number | null = null;
+let ignoredWindowPosition: { x: number; y: number } | null = null;
+let windowScale = 1;
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -412,8 +426,101 @@ async function resizeWindow(width: number, height: number): Promise<void> {
   }
 }
 
+function clearTuckTimers(): void {
+  if (tuckTimer !== null) window.clearTimeout(tuckTimer);
+  if (clickThroughTimer !== null) window.clearTimeout(clickThroughTimer);
+  tuckTimer = null;
+  clickThroughTimer = null;
+}
+
+function stopReentryPoll(): void {
+  if (reentryPoll !== null) window.clearInterval(reentryPoll);
+  reentryPoll = null;
+}
+
+function startReentryPoll(): void {
+  if (!isTauri || reentryPoll !== null) return;
+  reentryPoll = window.setInterval(async () => {
+    if (!isTucked || !ignoredWindowPosition) return;
+    try {
+      const [cursorX, cursorY] = await invoke<[number, number]>("cursor_position");
+      const inset = ((SHELL_WIDTH - COMPACT_WIDTH) * 0.5) * windowScale;
+      const extraWidth = 24 * windowScale;
+      const left = ignoredWindowPosition.x + inset - extraWidth;
+      const right = ignoredWindowPosition.x + SHELL_WIDTH * windowScale - inset + extraWidth;
+      const top = ignoredWindowPosition.y;
+      const bottom = top + 14 * windowScale;
+      if (cursorX >= left && cursorX <= right && cursorY >= top && cursorY <= bottom) {
+        revealCompactNotch();
+      }
+    } catch {
+      // Never leave BurnClaw unreachable if global cursor polling fails.
+      revealCompactNotch();
+    }
+  }, 120);
+}
+
+async function setCursorIgnored(ignore: boolean): Promise<void> {
+  if (!appWindow || cursorIgnored === ignore) return;
+  cursorIgnored = ignore;
+  try {
+    if (ignore) {
+      ignoredWindowPosition = await appWindow.outerPosition();
+      await appWindow.setIgnoreCursorEvents(true);
+      startReentryPoll();
+    } else {
+      stopReentryPoll();
+      ignoredWindowPosition = null;
+      await appWindow.setIgnoreCursorEvents(false);
+    }
+  } catch (error) {
+    console.error("setIgnoreCursorEvents failed", error);
+    cursorIgnored = false;
+    stopReentryPoll();
+    ignoredWindowPosition = null;
+  }
+}
+
+function revealCompactNotch(): void {
+  clearTuckTimers();
+  if (isTucked) {
+    isTucked = false;
+    notch.classList.remove("tucked");
+  }
+  if (cursorIgnored) void setCursorIgnored(false);
+}
+
+function tuckCompactNotch(): void {
+  clearTuckTimers();
+  if (isPinned || shellState !== "compact" || notch.matches(":hover")) return;
+  isTucked = true;
+  notch.classList.add("tucked");
+  clickThroughTimer = window.setTimeout(() => {
+    clickThroughTimer = null;
+    if (isTucked) void setCursorIgnored(true);
+  }, 270);
+}
+
+function scheduleCompactTuck(delay = AUTO_TUCK_DELAY): void {
+  if (isPinned || shellState !== "compact") return;
+  if (tuckTimer !== null) window.clearTimeout(tuckTimer);
+  tuckTimer = window.setTimeout(() => {
+    tuckTimer = null;
+    tuckCompactNotch();
+  }, delay);
+}
+
+function renderPinState(): void {
+  notch.classList.toggle("pinned", isPinned);
+  pinButton.setAttribute("aria-pressed", String(isPinned));
+  pinButton.setAttribute("aria-label", isPinned ? "Allow BurnClaw to auto-hide" : "Keep BurnClaw visible");
+  pinButton.title = isPinned ? "Allow auto-hide" : "Keep visible";
+  if (isPinned) revealCompactNotch();
+}
+
 async function expand(): Promise<void> {
   if (shellState !== "compact") return;
+  revealCompactNotch();
   shellState = "expanding";
   expandedView.setAttribute("aria-hidden", "false");
   renderAll();
@@ -434,9 +541,11 @@ function collapse(instant = false): void {
   if (instant) {
     shellState = "compact";
     notch.className = "notch compact";
+    renderPinState();
     notch.style.height = `${COMPACT_HEIGHT}px`;
     expandedView.setAttribute("aria-hidden", "true");
     void resizeWindow(SHELL_WIDTH, COMPACT_HEIGHT);
+    scheduleCompactTuck();
     return;
   }
 
@@ -446,9 +555,11 @@ function collapse(instant = false): void {
   window.setTimeout(() => {
     shellState = "compact";
     notch.className = "notch compact";
+    renderPinState();
     notch.style.height = `${COMPACT_HEIGHT}px`;
     expandedView.setAttribute("aria-hidden", "true");
     void resizeWindow(SHELL_WIDTH, COMPACT_HEIGHT);
+    scheduleCompactTuck();
   }, 310);
 }
 
@@ -484,6 +595,15 @@ async function respondToRequest(id: string, action: string, answers?: Record<str
 }
 
 $("compact-view").addEventListener("click", () => void expand());
+pinButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  isPinned = !isPinned;
+  window.localStorage.setItem(PIN_STORAGE_KEY, String(isPinned));
+  renderPinState();
+  if (!isPinned) scheduleCompactTuck(700);
+});
+notch.addEventListener("mouseenter", () => revealCompactNotch());
+notch.addEventListener("mouseleave", () => scheduleCompactTuck(700));
 $("btn-collapse").addEventListener("click", () => collapse());
 $("btn-settings").addEventListener("click", () => {
   if (isTauri) void invoke("show_settings");
@@ -621,7 +741,11 @@ void listen<{ id: string }>("agent-request-resolved", ({ payload }) => {
   renderSessions();
 });
 
-void listen("window-shown", () => collapse(true));
+void listen("window-shown", () => {
+  revealCompactNotch();
+  collapse(true);
+  scheduleCompactTuck();
+});
 void listen("setup-completed", () => {
   window.setTimeout(() => void expand(), 140);
 });
@@ -637,12 +761,16 @@ window.setInterval(() => {
 }, 15_000);
 
 async function bootstrap(): Promise<void> {
+  renderPinState();
   if (!isTauri) {
     seedPreviewData();
     renderAll();
     notch.style.height = `${COMPACT_HEIGHT}px`;
+    scheduleCompactTuck();
     return;
   }
+
+  windowScale = await appWindow!.scaleFactor().catch(() => 1);
 
   const [claudeUsage, codexUsage, claudeStatus, codexStatus, initialSessions, requests] = await Promise.all([
     invoke<UsageSnapshot | null>("get_current_usage").catch(() => null),
@@ -677,6 +805,7 @@ async function bootstrap(): Promise<void> {
   renderAll();
   notch.style.height = `${COMPACT_HEIGHT}px`;
   await resizeWindow(SHELL_WIDTH, COMPACT_HEIGHT);
+  scheduleCompactTuck();
 }
 
 function seedPreviewData(): void {

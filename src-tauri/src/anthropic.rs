@@ -150,14 +150,6 @@ async fn make_request(access_token: &str, plan: &str) -> Result<UsageSnapshot, A
 
     let headers = res.headers().clone();
 
-    println!("--- RAW HEADERS ---");
-    for (name, value) in headers.iter() {
-        if name.as_str().starts_with("anthropic-") {
-            println!("  {}: {:?}", name, value);
-        }
-    }
-    println!("--- END HEADERS ---");
-
     // Helper para extraer headers
     let get = |name: &'static str| -> Result<String, AnthropicError> {
         headers
@@ -174,13 +166,17 @@ async fn make_request(access_token: &str, plan: &str) -> Result<UsageSnapshot, A
     let weekly_reset_raw = get("anthropic-ratelimit-unified-7d-reset")?;
 
     let get_opt = |name: &str| -> Option<String> {
-        headers.get(name).and_then(|v| v.to_str().ok()).map(|s| s.to_string())
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
     };
 
     let unified_status = get_opt("anthropic-ratelimit-unified-status").unwrap_or_default();
     let session_5h_status = get_opt("anthropic-ratelimit-unified-5h-status").unwrap_or_default();
     let weekly_7d_status = get_opt("anthropic-ratelimit-unified-7d-status").unwrap_or_default();
-    let representative_claim = get_opt("anthropic-ratelimit-unified-representative-claim").unwrap_or_default();
+    let representative_claim =
+        get_opt("anthropic-ratelimit-unified-representative-claim").unwrap_or_default();
     let overage_status = get_opt("anthropic-ratelimit-unified-overage-status").unwrap_or_default();
     let overage_disabled_reason = get_opt("anthropic-ratelimit-unified-overage-disabled-reason");
 
@@ -212,7 +208,8 @@ async fn make_request(access_token: &str, plan: &str) -> Result<UsageSnapshot, A
 
 fn parse_utilization(raw: &str) -> Result<f64, AnthropicError> {
     // Confirmado vía issue Hermes: viene como float 0.0–1.0 (ej. "0.03")
-    let v: f64 = raw.parse()
+    let v: f64 = raw
+        .parse()
         .map_err(|_| AnthropicError::InvalidHeaderValue(raw.to_string()))?;
     Ok(v * 100.0)
 }

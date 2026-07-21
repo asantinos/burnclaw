@@ -126,8 +126,8 @@ fn path() -> Result<PathBuf, CodexError> {
 /// fiable entre versiones; nos apoyamos en el 401 del endpoint).
 pub fn load_raw() -> Result<CodexAuth, CodexError> {
     let path = path()?;
-    let content = fs::read_to_string(&path)
-        .map_err(|_| CodexError::NotFound(path.display().to_string()))?;
+    let content =
+        fs::read_to_string(&path).map_err(|_| CodexError::NotFound(path.display().to_string()))?;
     let parsed: CodexAuth = serde_json::from_str(&content)?;
     Ok(parsed)
 }
@@ -180,9 +180,11 @@ fn email_from_jwt(jwt: &str) -> Option<String> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CodexUsageSnapshot {
-    pub session_5h_pct: f64,
+    /// Optional because Codex currently exposes only the weekly window. Keep
+    /// it in the contract so the UI restores 5h automatically if it returns.
+    pub session_5h_pct: Option<f64>,
     pub session_5h_reset_at: Option<DateTime<Utc>>,
-    pub weekly_pct: f64,
+    pub weekly_pct: Option<f64>,
     pub weekly_reset_at: Option<DateTime<Utc>>,
     pub fetched_at: DateTime<Utc>,
     /// Tipo de plan ChatGPT ("plus", "pro", …), tal cual lo reporta el endpoint.
@@ -282,31 +284,79 @@ pub async fn fetch_usage() -> Result<CodexUsageSnapshot, CodexError> {
     let parsed: UsageResponse = res.json().await?;
     let rate = parsed.rate_limit.ok_or(CodexError::NoRateLimit)?;
 
-    // Mapear ventanas a 5h / semanal por `limit_window_seconds`; si no viene,
-    // caer al orden convencional primary=5h, secondary=semanal.
-    let mut session: Option<&RateWindow> = None;
-    let mut weekly: Option<&RateWindow> = None;
-    for w in [rate.primary_window.as_ref(), rate.secondary_window.as_ref()]
-        .into_iter()
-        .flatten()
-    {
-        match w.limit_window_seconds {
-            Some(s) if (s - WINDOW_5H_SECS).abs() <= 60 => session = Some(w),
-            Some(s) if (s - WINDOW_WEEKLY_SECS).abs() <= 3600 => weekly = Some(w),
-            _ => {}
-        }
-    }
-    if session.is_none() && weekly.is_none() {
-        session = rate.primary_window.as_ref();
-        weekly = rate.secondary_window.as_ref();
-    }
+    // Mapear por duración. Si solo llega una ventana sin duración se interpreta
+    // como semanal; dos ventanas conservan el histórico primary=5h/secondary=7d.
+    let (session, weekly) = classify_windows(&rate);
 
     Ok(CodexUsageSnapshot {
-        session_5h_pct: session.map(RateWindow::pct).unwrap_or(0.0),
+        session_5h_pct: session.map(RateWindow::pct),
         session_5h_reset_at: session.and_then(RateWindow::reset_at),
-        weekly_pct: weekly.map(RateWindow::pct).unwrap_or(0.0),
+        weekly_pct: weekly.map(RateWindow::pct),
         weekly_reset_at: weekly.and_then(RateWindow::reset_at),
         fetched_at: Utc::now(),
         plan_type: parsed.plan_type,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_unlabelled_window_is_weekly() {
+        let rate = RateLimit {
+            primary_window: Some(RateWindow {
+                used_percent: Some(25.0),
+                limit_window_seconds: None,
+                reset_at: None,
+                reset_after_seconds: None,
+            }),
+            secondary_window: None,
+        };
+        let (session, weekly) = classify_windows(&rate);
+        assert!(session.is_none());
+        assert!(weekly.is_some());
+    }
+
+    #[test]
+    fn explicit_five_hour_window_remains_supported() {
+        let rate = RateLimit {
+            primary_window: Some(RateWindow {
+                used_percent: Some(25.0),
+                limit_window_seconds: Some(WINDOW_5H_SECS),
+                reset_at: None,
+                reset_after_seconds: None,
+            }),
+            secondary_window: None,
+        };
+        let (session, weekly) = classify_windows(&rate);
+        assert!(session.is_some());
+        assert!(weekly.is_none());
+    }
+}
+
+fn classify_windows(rate: &RateLimit) -> (Option<&RateWindow>, Option<&RateWindow>) {
+    let mut session = None;
+    let mut weekly = None;
+    for window in [rate.primary_window.as_ref(), rate.secondary_window.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        match window.limit_window_seconds {
+            Some(seconds) if (seconds - WINDOW_5H_SECS).abs() <= 60 => session = Some(window),
+            Some(seconds) if (seconds - WINDOW_WEEKLY_SECS).abs() <= 3600 => weekly = Some(window),
+            _ => {}
+        }
+    }
+    if session.is_none() && weekly.is_none() {
+        match (rate.primary_window.as_ref(), rate.secondary_window.as_ref()) {
+            (Some(primary), Some(secondary)) => {
+                session = Some(primary);
+                weekly = Some(secondary);
+            }
+            (Some(only), None) | (None, Some(only)) => weekly = Some(only),
+            (None, None) => {}
+        }
+    }
+    (session, weekly)
 }

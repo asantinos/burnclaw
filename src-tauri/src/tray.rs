@@ -6,12 +6,12 @@ use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition,
 };
 
-use crate::{ForceRefresh, LastWindowPos, SharedCodexUsage, SharedUsage};
+use crate::{ForceRefresh, SharedCodexUsage, SharedUsage};
 
 const TRAY_ID: &str = "burnclaw-tray";
 const WINDOW_LABEL: &str = "main";
 /// Separación entre el borde superior de la pantalla y la ventana.
-const TOP_MARGIN: i32 = 8;
+const TOP_MARGIN: i32 = 0;
 
 const IDLE_PNG: &[u8] = include_bytes!("../icons/tray/idle.png");
 const OK_PNG: &[u8] = include_bytes!("../icons/tray/ok.png");
@@ -75,11 +75,6 @@ fn toggle_window(app: &AppHandle) {
     };
     if window.is_visible().unwrap_or(false) {
         // Guarda la posición actual antes de ocultar.
-        if let (Ok(pos), Some(last)) =
-            (window.outer_position(), app.try_state::<LastWindowPos>())
-        {
-            *last.lock().unwrap() = Some((pos.x, pos.y));
-        }
         let _ = window.hide();
     } else {
         show_main_window(app);
@@ -93,16 +88,8 @@ pub fn show_main_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
         return;
     };
-    let restored = app
-        .try_state::<LastWindowPos>()
-        .and_then(|s| *s.lock().unwrap());
-    if let Some((x, y)) = restored {
-        let _ = window.set_position(PhysicalPosition::new(x, y));
-    } else {
-        position_top_center(&window);
-    }
+    position_top_center(&window);
     let _ = window.show();
-    let _ = window.set_focus();
     // El frontend vuelve al estado colapsado (pill).
     let _ = app.emit_to(WINDOW_LABEL, "window-shown", ());
 }
@@ -165,12 +152,21 @@ pub fn update_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         ));
     }
     if let Some(x) = &codex {
-        max_pct = max_pct.max(x.session_5h_pct).max(x.weekly_pct);
-        lines.push(format!(
-            "Codex · 5h {}%{}",
-            x.session_5h_pct.round() as i64,
-            paren(x.session_5h_reset_at),
-        ));
+        for pct in [x.session_5h_pct, x.weekly_pct].into_iter().flatten() {
+            max_pct = max_pct.max(pct);
+        }
+        let visible = x
+            .session_5h_pct
+            .map(|pct| ("5h", pct, x.session_5h_reset_at))
+            .or_else(|| x.weekly_pct.map(|pct| ("7d", pct, x.weekly_reset_at)));
+        if let Some((label, pct, reset)) = visible {
+            lines.push(format!(
+                "Codex · {} {}%{}",
+                label,
+                pct.round() as i64,
+                paren(reset),
+            ));
+        }
     }
 
     // Sin datos aún: dejar el icono idle del arranque.
@@ -186,10 +182,7 @@ pub fn update_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn format_countdown(reset: &DateTime<Utc>) -> String {
-    let secs = reset
-        .signed_duration_since(Utc::now())
-        .num_seconds()
-        .max(0);
+    let secs = reset.signed_duration_since(Utc::now()).num_seconds().max(0);
     let d = secs / 86400;
     let h = (secs % 86400) / 3600;
     let m = (secs % 3600) / 60;

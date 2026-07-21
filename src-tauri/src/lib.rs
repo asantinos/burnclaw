@@ -1,3 +1,4 @@
+mod agent_requests;
 mod anthropic;
 mod codex;
 mod commands;
@@ -6,17 +7,22 @@ mod hook_server;
 mod logging;
 mod notifications;
 mod poller;
+mod sessions;
 mod setup_state;
 mod status;
 mod tray;
 
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 
+use agent_requests::SharedAgentRequests;
 use anthropic::UsageSnapshot;
 use codex::CodexUsageSnapshot;
 use notifications::NotificationState;
+use sessions::SharedSessions;
 use setup_state::SetupState;
 use status::StatusSnapshot;
+use sysinfo::{get_current_pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
@@ -101,7 +107,15 @@ pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
     });
 
     // Servidor de hooks de Claude Code.
-    let hook_state = hook_server::HookState { app: app.clone() };
+    let hook_state = hook_server::HookState {
+        app: app.clone(),
+        sessions: app.state::<SharedSessions>().inner().clone(),
+        requests: app.state::<SharedAgentRequests>().inner().clone(),
+    };
+
+    // Migrate old curl hooks and install newly supported lifecycle events.
+    // The repair functions only replace BurnClaw-owned entries.
+    commands::ensure_hooks_current(track_claude, track_codex);
     tauri::async_runtime::spawn(hook_server::start_server(hook_state));
 
     Ok(())
@@ -112,6 +126,8 @@ pub fn init_tray_and_pill(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 struct CodexForwardEvent {
     event_type: &'static str,
     provider: &'static str,
+    session_id: Option<String>,
+    cwd: Option<String>,
     message: Option<String>,
 }
 
@@ -133,6 +149,14 @@ fn try_codex_notify_forward() -> bool {
         .get("last-assistant-message")
         .and_then(|m| m.as_str())
         .map(|s| s.to_string());
+    let session_id = v
+        .get("thread-id")
+        .and_then(|id| id.as_str())
+        .map(|s| s.to_string());
+    let cwd = v
+        .get("cwd")
+        .and_then(|cwd| cwd.as_str())
+        .map(|s| s.to_string());
 
     // Codex solo emite dos tipos; los mapeamos a los estados que ya entiende el
     // frontend (awaiting / finished).
@@ -145,6 +169,8 @@ fn try_codex_notify_forward() -> bool {
     let body = CodexForwardEvent {
         event_type,
         provider: "codex",
+        session_id,
+        cwd,
         message,
     };
     if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
@@ -163,8 +189,162 @@ fn try_codex_notify_forward() -> bool {
     true
 }
 
+fn hook_owner_pid(provider: &str) -> Option<u32> {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always),
+    );
+    let mut pid = get_current_pid().ok()?;
+    for _ in 0..12 {
+        let process = system.process(pid)?;
+        let parent_pid = process.parent()?;
+        let parent = system.process(parent_pid)?;
+        let name = parent.name().to_string_lossy().to_ascii_lowercase();
+        let command = parent
+            .cmd()
+            .iter()
+            .map(|part| part.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase();
+        let matches = match provider {
+            "claude" => {
+                name == "claude"
+                    || name == "claude.exe"
+                    || command.contains("@anthropic-ai/claude-code")
+            }
+            "codex" => name == "codex" || name == "codex.exe" || command.contains("@openai/codex"),
+            _ => false,
+        };
+        if matches {
+            return Some(parent_pid.as_u32());
+        }
+        pid = parent_pid;
+    }
+    None
+}
+
+/// Native lifecycle-hook bridge shared by Claude and Codex. Ordinary events
+/// never write stdout; only an intentional hook decision is relayed.
+fn try_hook_forward() -> Option<i32> {
+    let args: Vec<_> = std::env::args().collect();
+    let (provider, endpoint) = if args.iter().any(|arg| arg == "--claude-hook") {
+        ("claude", "http://127.0.0.1:9876/event/claude")
+    } else if args.iter().any(|arg| arg == "--codex-hook") {
+        ("codex", "http://127.0.0.1:9876/event/codex")
+    } else {
+        return None;
+    };
+
+    let mut payload = String::new();
+    if let Err(error) = std::io::stdin().read_to_string(&mut payload) {
+        logging::hook_bridge_error(&format!(
+            "could not read {} hook input: {}",
+            provider, error
+        ));
+        return Some(0);
+    }
+    let mut parsed = match serde_json::from_str::<serde_json::Value>(&payload) {
+        Ok(value) => value,
+        Err(error) => {
+            logging::hook_bridge_error(&format!("invalid {} hook JSON: {}", provider, error));
+            return Some(0);
+        }
+    };
+
+    let Some(object) = parsed.as_object_mut() else {
+        logging::hook_bridge_error(&format!("invalid {} hook object", provider));
+        return Some(0);
+    };
+    object.insert("provider".into(), serde_json::json!(provider));
+    if let Some(owner_pid) = hook_owner_pid(provider) {
+        object.insert("owner_pid".into(), serde_json::json!(owner_pid));
+    }
+    let payload = match serde_json::to_string(&parsed) {
+        Ok(payload) => payload,
+        Err(error) => {
+            logging::hook_bridge_error(&format!("could not encode {} hook: {}", provider, error));
+            return Some(0);
+        }
+    };
+
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            logging::hook_bridge_error(&format!(
+                "could not start {} hook bridge: {}",
+                provider, error
+            ));
+            return Some(0);
+        }
+    };
+
+    Some(runtime.block_on(async move {
+        let client = reqwest::Client::new();
+        let mut attempt = 0;
+        let response = loop {
+            match client
+                .post(endpoint)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(payload.clone())
+                .timeout(std::time::Duration::from_secs(305))
+                .send()
+                .await
+            {
+                Ok(response) => break response,
+                Err(error) if error.is_connect() && attempt < 11 => {
+                    attempt += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                }
+                Err(error) => {
+                    logging::hook_bridge_error(&format!(
+                        "{} event skipped because BurnClaw was unavailable: {}",
+                        provider, error
+                    ));
+                    // Monitoring must never break or clutter the Codex session.
+                    return 0;
+                }
+            }
+        };
+
+        if !response.status().is_success() {
+            logging::hook_bridge_error(&format!(
+                "{} event rejected by BurnClaw ({})",
+                provider,
+                response.status()
+            ));
+            return 0;
+        }
+
+        let body = match response.text().await {
+            Ok(body) => body,
+            Err(error) => {
+                logging::hook_bridge_error(&format!(
+                    "could not read the {} hook response: {}",
+                    provider, error
+                ));
+                return 0;
+            }
+        };
+        let parsed = serde_json::from_str::<serde_json::Value>(&body).unwrap_or_default();
+        if parsed.get("hookSpecificOutput").is_some() {
+            println!("{}", body);
+        }
+        0
+    }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(exit_code) = try_hook_forward() {
+        std::process::exit(exit_code);
+    }
+
     // Modo forwarder del `notify` de Codex: reenvía y sale, sin arrancar la app.
     if try_codex_notify_forward() {
         return;
@@ -186,6 +366,9 @@ pub fn run() {
         Arc::new(Mutex::new(NotificationState::new()));
     let last_window_pos: LastWindowPos = Arc::new(Mutex::new(None));
     let settings: SharedSettings = Arc::new(Mutex::new(SetupState::load()));
+    let sessions: SharedSessions = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    let agent_requests: SharedAgentRequests =
+        Arc::new(Mutex::new(std::collections::HashMap::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -198,6 +381,8 @@ pub fn run() {
         .manage(notification_state)
         .manage(last_window_pos)
         .manage(settings)
+        .manage(sessions)
+        .manage(agent_requests)
         .invoke_handler(tauri::generate_handler![
             commands::get_current_usage,
             commands::get_current_codex_usage,
@@ -205,16 +390,26 @@ pub fn run() {
             commands::get_codex_plan,
             commands::get_current_status,
             commands::get_current_codex_status,
+            commands::get_agent_sessions,
+            commands::dismiss_agent_session,
+            commands::get_pending_agent_requests,
+            commands::respond_to_agent_request,
+            commands::show_settings,
+            commands::hide_settings,
             commands::resize_shell_window,
             commands::cursor_position,
             commands::force_refresh,
             commands::check_credentials,
             commands::run_claude_login,
             commands::run_codex_login,
+            commands::cancel_provider_login,
             commands::refresh_oauth_token,
             commands::check_hooks_status,
             commands::install_hooks,
             commands::remove_hooks,
+            commands::check_codex_hooks_status,
+            commands::install_codex_hooks,
+            commands::remove_codex_hooks,
             commands::check_codex_notify,
             commands::install_codex_notify,
             commands::remove_codex_notify,

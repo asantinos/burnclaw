@@ -18,11 +18,7 @@ fn write_line(file: &str, msg: &str) {
         return;
     };
     path.push(file);
-    let line = format!(
-        "[{}] {}\n",
-        Local::now().format("%Y-%m-%d %H:%M:%S"),
-        msg
-    );
+    let line = format!("[{}] {}\n", Local::now().format("%Y-%m-%d %H:%M:%S"), msg);
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
         let _ = f.write_all(line.as_bytes());
     }
@@ -38,4 +34,11 @@ pub fn app(msg: &str) {
 /// Log de eventos de hooks de Claude Code → hooks.log
 pub fn hook(msg: &str) {
     write_line("hooks.log", msg);
+}
+
+/// Diagnostic emitted by short-lived hook bridge processes. Unlike `app`, it
+/// intentionally writes only to disk: stderr from a hook is surfaced by Codex
+/// and would make an unavailable widget look like an agent failure.
+pub fn hook_bridge_error(msg: &str) {
+    write_line("hooks.log", &format!("bridge error: {}", msg));
 }

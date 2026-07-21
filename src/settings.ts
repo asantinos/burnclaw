@@ -873,7 +873,10 @@ function paintProviderMarks() {
     .forEach((e) => (e.innerHTML = CLAUDE_ICON));
   document
     .querySelectorAll<HTMLElement>('[data-provider="codex"].provider-mark, [data-provider="codex"].mini-provider-mark')
-    .forEach((e) => (e.innerHTML = CODEX_ICON));
+    .forEach((e, index) => {
+      const gradientId = `burnclaw-codex-gradient-settings-${index}`;
+      e.innerHTML = CODEX_ICON.replace(/burnclaw-codex-gradient/g, gradientId);
+    });
 }
 
 paintProviderMarks();

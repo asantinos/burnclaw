@@ -10,6 +10,9 @@ import { CLAUDE_ICON, CODEX_ICON } from "./icons";
 // sin rename_all, así que el objeto debe coincidir campo a campo.
 interface SetupState {
   completed: boolean;
+  providers_chosen: boolean;
+  track_claude: boolean;
+  track_codex: boolean;
   auto_start: boolean;
   start_minimized: boolean;
   polling_interval_secs: number;
@@ -45,6 +48,9 @@ type BoolKey =
 
 const DEFAULTS: SetupState = {
   completed: true,
+  providers_chosen: true,
+  track_claude: true,
+  track_codex: true,
   auto_start: true,
   start_minimized: true,
   polling_interval_secs: 60,
@@ -72,9 +78,6 @@ let codexNotifyLoading = false;
 const SOURCE_URL = "https://github.com/asantinos/burnclaw";
 const ISSUES_URL = "https://github.com/asantinos/burnclaw/issues";
 const AUTHOR_URL = "https://github.com/asantinos";
-
-// % de una ventana de 5h consumido a 60s, por plan (estimaciones community).
-const PCT_AT_60S: Record<string, number> = { pro: 6.8, max: 3.4, max20: 1.4 };
 
 // ====================================================
 // HELPERS
@@ -153,6 +156,17 @@ function updateActivityDependents() {
   });
 }
 
+function updateProviderControls() {
+  const claude = input("set-track-claude");
+  const codex = input("set-track-codex");
+  if (!claude || !codex) return;
+  claude.checked = state.track_claude;
+  codex.checked = state.track_codex;
+  // One provider must remain visible. Enable the other before disabling the last one.
+  claude.disabled = state.track_claude && !state.track_codex;
+  codex.disabled = state.track_codex && !state.track_claude;
+}
+
 function populateControls() {
   const bools: [string, BoolKey][] = [
     ["set-pill-activity", "pill_activity_enabled"],
@@ -172,6 +186,7 @@ function populateControls() {
     const c = input(id);
     if (c) c.checked = state[key];
   }
+  updateProviderControls();
   updateActivityDependents();
 
   // Start mode: pill = start_minimized true, window = false.
@@ -223,22 +238,25 @@ function updateThresholdBar() {
   const wm = el("thr-warn-marker");
   if (wm) {
     wm.style.left = `${warn}%`;
-    wm.dataset.label = `warn ${warn}%`;
+    wm.dataset.label = `warning ${warn}%`;
   }
   const cm = el("thr-crit-marker");
   if (cm) {
     cm.style.left = `${crit}%`;
-    cm.dataset.label = `crit ${crit}%`;
+    cm.dataset.label = `critical ${crit}%`;
   }
 }
 
 function updateTradeOff() {
   const elTrade = el("set-trade-off");
   if (!elTrade) return;
-  const planLabel = userPlan in PCT_AT_60S ? userPlan : "max";
-  const basePct = PCT_AT_60S[planLabel];
-  const pct = ((basePct * 60) / state.polling_interval_secs).toFixed(1);
-  elTrade.innerHTML = `At ${state.polling_interval_secs}s, BurnClaw uses about <strong>${pct}%</strong> of a session window (5h) on your <strong>${planLabel}</strong> plan.`;
+  const descriptions: Record<number, string> = {
+    30: "Fastest updates with more frequent background checks.",
+    60: "Recommended balance between freshness and background activity.",
+    120: "Fewer background checks; usage may take up to two minutes to update.",
+    300: "Lowest background activity; usage may take up to five minutes to update.",
+  };
+  elTrade.textContent = descriptions[state.polling_interval_secs] ?? descriptions[60];
 }
 
 // ====================================================
@@ -287,7 +305,7 @@ async function renderAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn subtle" onclick="recheckAccount()">Re-check</button>
+          <button class="action-btn subtle" onclick="recheckAccount()">Check again</button>
         </div>
       </div>`;
   } else if (credsState === "expired") {
@@ -300,7 +318,7 @@ async function renderAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="openClaudeLogin()">Open Claude Code login</button>
+          <button class="action-btn" onclick="openClaudeLogin()">Sign in to Claude</button>
         </div>
       </div>`;
   } else {
@@ -313,7 +331,7 @@ async function renderAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="openClaudeLogin()">Open Claude Code login</button>
+          <button class="action-btn" onclick="openClaudeLogin()">Sign in to Claude</button>
         </div>
       </div>`;
   }
@@ -393,7 +411,7 @@ async function renderCodexAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn subtle" onclick="recheckCodex()">Re-check</button>
+          <button class="action-btn subtle" onclick="recheckCodex()">Check again</button>
         </div>
       </div>`;
   } else if (cstate === "api_key_only") {
@@ -406,7 +424,7 @@ async function renderCodexAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="openCodexLogin()">Open Codex login</button>
+          <button class="action-btn" onclick="openCodexLogin()">Sign in to Codex</button>
         </div>
       </div>`;
   } else {
@@ -419,7 +437,7 @@ async function renderCodexAccount(showChecking = true) {
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="openCodexLogin()">Open Codex login</button>
+          <button class="action-btn" onclick="openCodexLogin()">Sign in to Codex</button>
         </div>
       </div>`;
   }
@@ -450,8 +468,8 @@ async function renderHooks() {
       <div class="status-line">
         <div class="status-line-header">
           <div class="status-text">
-            <span class="status-dot checking inline"></span>Updating hooks…
-            <div class="meta">Writing to ~/.claude/settings.json</div>
+            <span class="status-dot checking inline"></span>Updating live activity...
+            <div class="meta">Applying the local Claude Code connection.</div>
           </div>
         </div>
       </div>`;
@@ -473,12 +491,12 @@ async function renderHooks() {
       <div class="status-line">
         <div class="status-line-header">
           <div class="status-text">
-            <span class="status-dot ok inline"></span>Hooks installed
-            <div class="meta">${count} lifecycle events registered · restart Claude Code to apply</div>
+            <span class="status-dot ok inline"></span>Live activity enabled
+            <div class="meta">${count} events connected · restart Claude Code after changes</div>
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn danger" onclick="removeHooks()">Remove hooks</button>
+          <button class="action-btn danger" onclick="removeHooks()">Turn off</button>
         </div>
       </div>`;
     backupBox.innerHTML = `
@@ -486,7 +504,7 @@ async function renderHooks() {
         <div class="status-line-header">
           <div class="status-text">
             <div class="status-text-row">
-              <span><span class="status-dot ok inline"></span>Backup created</span>
+              <span><span class="status-dot ok inline"></span>Configuration protected</span>
               <code class="path-tag">~/.claude/settings.json.bak</code>
             </div>
             <div class="meta">Original settings saved before BurnClaw made changes.</div>
@@ -498,12 +516,12 @@ async function renderHooks() {
       <div class="status-line">
         <div class="status-line-header">
           <div class="status-text">
-            <span class="status-dot inline"></span>Hooks not configured
-            <div class="meta">Existing hooks in your settings.json will be preserved (backup created).</div>
+            <span class="status-dot inline"></span>Live activity is off
+            <div class="meta">Your existing Claude Code configuration will be preserved.</div>
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="installHooks()">Install hooks</button>
+          <button class="action-btn" onclick="installHooks()">Enable live activity</button>
         </div>
       </div>`;
     backupBox.innerHTML = `
@@ -511,10 +529,10 @@ async function renderHooks() {
         <div class="status-line-header">
           <div class="status-text">
             <div class="status-text-row">
-              <span><span class="status-dot inline"></span>No changes made yet</span>
+              <span><span class="status-dot inline"></span>Configuration unchanged</span>
               <code class="path-tag">~/.claude/settings.json</code>
             </div>
-            <div class="meta">A backup is created automatically when hooks are installed.</div>
+            <div class="meta">BurnClaw creates a backup automatically before enabling activity.</div>
           </div>
         </div>
       </div>`;
@@ -530,8 +548,8 @@ async function renderCodexNotify() {
       <div class="status-line">
         <div class="status-line-header">
           <div class="status-text">
-            <span class="status-dot checking inline"></span>Updating Codex notify…
-            <div class="meta">Writing to ~/.codex/config.toml</div>
+            <span class="status-dot checking inline"></span>Updating live activity...
+            <div class="meta">Applying the local Codex connection.</div>
           </div>
         </div>
       </div>`;
@@ -540,7 +558,7 @@ async function renderCodexNotify() {
 
   let installed = false;
   try {
-    const check = await invoke<any>("check_codex_notify");
+    const check = await invoke<any>("check_codex_hooks_status");
     installed = check.installed;
   } catch {
     installed = false;
@@ -552,14 +570,14 @@ async function renderCodexNotify() {
         <div class="status-line-header">
           <div class="status-text">
             <div class="status-text-row">
-              <span><span class="status-dot ok inline"></span>Notify configured</span>
-              <code class="path-tag">~/.codex/config.toml</code>
+              <span><span class="status-dot ok inline"></span>Live activity enabled</span>
+              <code class="path-tag">~/.codex/hooks.json</code>
             </div>
-            <div class="meta">Codex pings BurnClaw on turn complete / approval · restart Codex to apply.</div>
+            <div class="meta">Sessions and approvals connected · restart Codex after changes.</div>
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn danger" onclick="removeCodexNotify()">Remove</button>
+          <button class="action-btn danger" onclick="removeCodexNotify()">Turn off</button>
         </div>
       </div>`;
   } else {
@@ -567,12 +585,12 @@ async function renderCodexNotify() {
       <div class="status-line">
         <div class="status-line-header">
           <div class="status-text">
-            <span class="status-dot inline"></span>Not configured
-            <div class="meta">Adds a notify entry to ~/.codex/config.toml (backup created; replaces any existing notify).</div>
+            <span class="status-dot inline"></span>Live activity is off
+            <div class="meta">Your existing Codex configuration will be preserved.</div>
           </div>
         </div>
         <div class="status-line-actions">
-          <button class="action-btn" onclick="installCodexNotify()">Set up Codex activity</button>
+          <button class="action-btn" onclick="installCodexNotify()">Enable live activity</button>
         </div>
       </div>`;
   }
@@ -633,9 +651,9 @@ async function renderCodexNotify() {
   codexNotifyLoading = true;
   void renderCodexNotify();
   try {
-    await invoke("install_codex_notify");
+    await invoke("install_codex_hooks");
   } catch (e) {
-    console.error("install_codex_notify failed", e);
+    console.error("install_codex_hooks failed", e);
   }
   codexNotifyLoading = false;
   void renderCodexNotify();
@@ -645,9 +663,9 @@ async function renderCodexNotify() {
   codexNotifyLoading = true;
   void renderCodexNotify();
   try {
-    await invoke("remove_codex_notify");
+    await invoke("remove_codex_hooks");
   } catch (e) {
-    console.error("remove_codex_notify failed", e);
+    console.error("remove_codex_hooks failed", e);
   }
   codexNotifyLoading = false;
   void renderCodexNotify();
@@ -662,6 +680,22 @@ function wireControls() {
     item.addEventListener("click", () =>
       goToSection((item as HTMLElement).dataset.section || "account"),
     );
+  });
+
+  ([
+    ["set-track-claude", "track_claude"],
+    ["set-track-codex", "track_codex"],
+  ] as const).forEach(([id, key]) => {
+    input(id)?.addEventListener("change", (event) => {
+      const control = event.currentTarget as HTMLInputElement;
+      state[key] = control.checked;
+      state.providers_chosen = true;
+      if (!state.track_claude && !state.track_codex) {
+        state[key] = true;
+      }
+      updateProviderControls();
+      persist();
+    });
   });
 
   // Toggles
@@ -772,6 +806,10 @@ function wireControls() {
   el("btn-report-issue")?.addEventListener("click", () => {
     openUrl(ISSUES_URL).catch((err) => console.error(err));
   });
+
+  el("close-btn")?.addEventListener("click", () => {
+    invoke("hide_settings").catch((e) => console.error("hide_settings failed", e));
+  });
 }
 
 function wireThreshold(
@@ -831,10 +869,10 @@ window.addEventListener("focus", () => {
 // Marcas de proveedor (iconos SVG) en Providers — estáticas, se pintan una vez.
 function paintProviderMarks() {
   document
-    .querySelectorAll<HTMLElement>('.provider-mark[data-provider="claude"]')
+    .querySelectorAll<HTMLElement>('[data-provider="claude"].provider-mark, [data-provider="claude"].mini-provider-mark')
     .forEach((e) => (e.innerHTML = CLAUDE_ICON));
   document
-    .querySelectorAll<HTMLElement>('.provider-mark[data-provider="codex"]')
+    .querySelectorAll<HTMLElement>('[data-provider="codex"].provider-mark, [data-provider="codex"].mini-provider-mark')
     .forEach((e) => (e.innerHTML = CODEX_ICON));
 }
 

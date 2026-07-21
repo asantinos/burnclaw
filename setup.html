@@ -22,7 +22,7 @@
       <aside class="sidebar">
         <div class="sidebar-brand">
           <div class="sidebar-logo">
-            <img src="/mascot.png" alt="BurnClaw" />
+            <img src="/mascot.png?v=3" alt="BurnClaw" />
           </div>
           <span class="sidebar-brand-name">BurnClaw</span>
         </div>
@@ -30,23 +30,38 @@
         <div class="sidebar-steps" id="sidebar-steps">
           <div class="step active" data-step="1">
             <div class="step-number">1</div>
-            <div class="step-label">Welcome</div>
+            <div class="step-copy">
+              <div class="step-label">Welcome</div>
+              <div class="step-caption">Choose what to track</div>
+            </div>
           </div>
           <div class="step" data-step="2">
             <div class="step-number">2</div>
-            <div class="step-label">Connection</div>
+            <div class="step-copy">
+              <div class="step-label">Connection</div>
+              <div class="step-caption">Connect your local CLIs</div>
+            </div>
           </div>
           <div class="step" data-step="3">
             <div class="step-number">3</div>
-            <div class="step-label">Activity hooks</div>
+            <div class="step-copy">
+              <div class="step-label">Live activity</div>
+              <div class="step-caption">Sessions and approvals</div>
+            </div>
           </div>
           <div class="step" data-step="4">
             <div class="step-number">4</div>
-            <div class="step-label">Preferences</div>
+            <div class="step-copy">
+              <div class="step-label">Ready</div>
+              <div class="step-caption">Review and finish</div>
+            </div>
           </div>
         </div>
 
-        <div class="sidebar-footer">v1.0.0</div>
+        <div class="sidebar-footer">
+          <span>BurnClaw for Windows</span>
+          <strong>v2.0.0</strong>
+        </div>
       </aside>
 
       <div class="panel">
@@ -55,34 +70,44 @@
           <div class="step-content active" data-step-content="1">
             <div class="welcome">
               <div class="welcome-logo">
-                <img src="/mascot.png" alt="BurnClaw" />
+                <img src="/mascot.png?v=3" alt="BurnClaw" />
               </div>
-              <div class="welcome-name">BurnClaw</div>
+              <div class="welcome-kicker">BurnClaw 2.0</div>
+              <div class="welcome-name">Your AI usage,<br />always in sight.</div>
               <div class="welcome-tagline">
-                Keep an eye on your Claude and Codex usage from the system
-                tray. Real-time session and weekly limits, without leaving
-                your terminal.
+                Track Claude and Codex limits, service health and active
+                sessions from a compact Windows notch.
               </div>
-              <div class="welcome-meta">Windows · Claude Code and/or Codex CLI</div>
+              <div class="welcome-meta">Local-first · Nothing leaves your computer</div>
 
               <div class="welcome-providers">
                 <div class="welcome-providers-label">What do you want to track?</div>
                 <div class="pref-select" id="provider-select">
                   <div class="pref-select-option" data-value="claude">
                     <span class="opt-main">
-                      <span class="opt-icon" data-icon="claude"></span>Claude
+                      <span class="opt-visual opt-visual-single">
+                        <span class="opt-icon" data-icon="claude"></span>
+                      </span>
+                      <span class="opt-label">Claude</span>
                     </span>
                     <span class="opt-detect" data-detect="claude"></span>
                   </div>
                   <div class="pref-select-option" data-value="codex">
                     <span class="opt-main">
-                      <span class="opt-icon" data-icon="codex"></span>Codex
+                      <span class="opt-visual opt-visual-single">
+                        <span class="opt-icon" data-icon="codex"></span>
+                      </span>
+                      <span class="opt-label">Codex</span>
                     </span>
                     <span class="opt-detect" data-detect="codex"></span>
                   </div>
                   <div class="pref-select-option selected" data-value="both">
                     <span class="opt-main">
-                      <span class="opt-icon" data-icon="claude"></span><span class="opt-icon" data-icon="codex"></span>Both
+                      <span class="opt-visual opt-visual-both">
+                        <span class="opt-icon" data-icon="claude"></span>
+                        <span class="opt-icon" data-icon="codex"></span>
+                      </span>
+                      <span class="opt-label">Both</span>
                     </span>
                     <span class="opt-detect"></span>
                   </div>
@@ -105,21 +130,29 @@
           <!-- STEP 3: HOOKS -->
           <div class="step-content" data-step-content="3">
             <h2 class="step-title">
-              Activity hooks <span class="badge">Optional</span>
+              Live activity <span class="badge">Optional</span>
             </h2>
             <p class="step-desc">
-              Lets BurnClaw show when Claude Code is working — an orange border
-              while a session runs, a notification when Claude needs you.
+              See sessions, questions and approvals as they happen. Usage and
+              service status still work if you skip this step.
             </p>
             <div id="hooks-section"></div>
+            <div class="activity-privacy">
+              <span class="activity-privacy-dot"></span>
+              Events stay on this computer. Existing hooks are preserved and backed up.
+            </div>
           </div>
 
           <!-- STEP 4: PREFERENCES -->
           <div class="step-content" data-step-content="4">
-            <h2 class="step-title">Preferences</h2>
-            <p class="step-desc">You can change these later from the tray menu.</p>
+            <h2 class="step-title">You're ready</h2>
+            <p class="step-desc">
+              BurnClaw is configured. You can change everything later from the tray menu.
+            </p>
 
-            <div class="pref-row">
+            <div class="ready-summary" id="ready-summary"></div>
+
+            <div class="pref-row ready-autostart">
               <div class="pref-row-flex">
                 <div class="pref-left">
                   <div class="pref-title">Start with Windows</div>
@@ -134,23 +167,6 @@
               </div>
             </div>
 
-            <div class="pref-row">
-              <div class="pref-left" style="margin-bottom: 12px">
-                <div class="pref-title">Polling interval</div>
-                <div class="pref-desc">How often BurnClaw checks your usage.</div>
-              </div>
-              <div class="pref-select" id="pref-polling" style="display: inline-flex">
-                <div class="pref-select-option" data-value="30">30s</div>
-                <div class="pref-select-option selected" data-value="60">60s</div>
-                <div class="pref-select-option" data-value="120">120s</div>
-                <div class="pref-select-option" data-value="300">300s</div>
-              </div>
-              <div class="pref-trade-off" id="trade-off">
-                At 60s, BurnClaw uses about <strong id="pct-display">3.4%</strong>
-                of a session window on your <strong id="plan-display">max</strong>
-                plan.
-              </div>
-            </div>
           </div>
         </div>
 
@@ -160,11 +176,10 @@
       <!-- MODAL -->
       <div class="modal-backdrop" id="modal-backdrop">
         <div class="modal">
-          <div class="modal-title">Remove activity hooks?</div>
-          <div class="modal-text">
-            This removes BurnClaw's hooks from your Claude Code settings. Usage
-            tracking keeps working, but the orange border and activity
-            notifications stop.
+          <div class="modal-title" id="remove-modal-title">Remove live activity?</div>
+          <div class="modal-text" id="remove-modal-text">
+            This removes BurnClaw's lifecycle hooks. Usage and service status
+            keep working, but live sessions and approvals stop.
           </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" id="modal-cancel">Cancel</button>

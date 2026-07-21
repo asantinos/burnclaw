@@ -172,6 +172,10 @@ Open **Settings** from the tray menu to configure:
 Settings are stored under the user's application configuration directory.
 Resetting BurnClaw does not delete Claude Code or Codex credentials.
 
+<p align="center">
+  <img src="docs/settings.png" width="820" alt="BurnClaw 2.0 provider settings" />
+</p>
+
 ## Privacy and caveats
 
 - BurnClaw has no telemetry, analytics or hosted backend.
@@ -213,6 +217,29 @@ The NSIS installer is generated under:
 ```text
 src-tauri/target/release/bundle/nsis/
 ```
+
+## Publishing a release
+
+The release workflow in `.github/workflows/release.yml` runs whenever a tag
+matching `v*` is pushed. It verifies that the tag, `package.json`, Tauri config
+and Cargo package all use the same version, then runs the frontend build and
+Rust tests on a Windows runner.
+
+If every check passes, GitHub builds the NSIS installer and creates a **draft
+release** with generated release notes and the `.exe` attached. Review the draft
+in GitHub and select **Publish release** when it is ready.
+
+For example, after changing every project version to `2.0.1` and committing it:
+
+```powershell
+git tag v2.0.1
+git push origin main
+git push origin v2.0.1
+```
+
+The workflow uses GitHub's built-in token and does not require a custom secret.
+Windows code signing is not configured yet, so SmartScreen may still warn about
+an unrecognized publisher.
 
 ## Verification
 

@@ -1,0 +1,81 @@
+name: Release Windows installer
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargoVersion = (cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+
+          $versions = @{
+            tag = $tagVersion
+            package = $packageVersion
+            tauri = $tauriVersion
+            cargo = $cargoVersion
+          }
+
+          $mismatches = $versions.GetEnumerator() | Where-Object { $_.Value -ne $tagVersion }
+          if ($mismatches) {
+            $summary = ($versions.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', '
+            throw "Release versions do not match: $summary"
+          }
+
+          "Validated BurnClaw $tagVersion"
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify frontend
+        run: bun run build
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build installer and create draft release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: bun run tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: BurnClaw ${{ github.ref_name }}
+          releaseBody: |
+            Windows installer for BurnClaw ${{ github.ref_name }}.
+
+            Download the NSIS setup executable below and run it for a per-user installation.
+          generateReleaseNotes: true
+          releaseDraft: true
+          prerelease: false
+          releaseAssetNamePattern: BurnClaw_[version]_windows_[arch][setup].[ext]
